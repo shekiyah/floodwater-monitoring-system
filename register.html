@@ -5,161 +5,98 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0E3B4D">
 <meta name="robots" content="noindex">
-<title>Recipients — Flood Monitoring System</title>
+<title>Sign up — Flood Monitoring System</title>
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
+<style>
+    .signup-wrap {
+        max-width: 440px;
+        margin: 0 auto;
+        padding: 32px 16px 48px;
+    }
+
+    .signup-brand {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 20px;
+        text-decoration: none;
+        color: #0E3B4D;
+        font-family: "Barlow Semi Condensed", sans-serif;
+        font-weight: 700;
+        font-size: 1.4rem;
+    }
+
+    .signup-wrap .field {
+        margin-bottom: 16px;
+    }
+
+    .signup-wrap input {
+        width: 100%;
+        box-sizing: border-box;
+    }
+
+    .signup-wrap .btn {
+        width: 100%;
+    }
+
+    .signup-foot {
+        margin-top: 18px;
+        text-align: center;
+    }
+</style>
 </head>
 <body>
 
 <a class="skip-link" href="#main">Skip to main content</a>
 
-<nav aria-label="Main">
+<main class="signup-wrap" id="main">
 
-    <a class="brand" href="dashboard.html">
-        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3c4.6 5.7 8.5 10 8.5 14.6a8.5 8.5 0 0 1-17 0C7.5 13 11.4 8.7 16 3z" fill="#E6B25E"/><path d="M9.6 18.4c1.6-1.4 3.2-1.4 4.8 0s3.2 1.4 4.8 0 2.2-.9 3-.4" fill="none" stroke="#0E3B4D" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <a class="signup-brand" href="index.html">
+        <svg class="brand-mark" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true"><path d="M16 3c4.6 5.7 8.5 10 8.5 14.6a8.5 8.5 0 0 1-17 0C7.5 13 11.4 8.7 16 3z" fill="#E6B25E"/><path d="M9.6 18.4c1.6-1.4 3.2-1.4 4.8 0s3.2 1.4 4.8 0 2.2-.9 3-.4" fill="none" stroke="#0E3B4D" stroke-width="1.8" stroke-linecap="round"/></svg>
         <span>Flood Monitoring System</span>
     </a>
 
-    <div class="user-account">
-        <span id="userName">Loading user…</span>
-        <small id="userRole"></small>
-    </div>
+    <form class="card form-card" id="registerForm" onsubmit="register(event)">
 
-    <div class="nav-actions">
-
-        <a href="dashboard.html" class="nav-icon-link" title="Dashboard">
-            <span class="icon-chip icon-chip--menu" aria-hidden="true">🏠</span>
-            <span class="nav-icon-label">Dashboard</span>
-        </a>
-
-        <div class="nav-menu">
-
-            <button type="button" class="menu-button" id="menuButton"
-                    aria-haspopup="true" aria-expanded="false" aria-controls="navDropdown"
-                    onclick="toggleMenu()">
-                <svg viewBox="0 0 20 16" width="20" height="16" aria-hidden="true">
-                    <rect y="0" width="20" height="2.4" rx="1.2" fill="currentColor"/>
-                    <rect y="6.8" width="20" height="2.4" rx="1.2" fill="currentColor"/>
-                    <rect y="13.6" width="20" height="2.4" rx="1.2" fill="currentColor"/>
-                </svg>
-                <span class="sr-only">Menu</span>
-            </button>
-
-            <div class="nav-dropdown" id="navDropdown" role="menu">
-
-                <a href="telemetry.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
-                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📶</span>
-                    Telemetry
-                </a>
-
-                <a href="history.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
-                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📊</span>
-                    History logs
-                </a>
-
-                <a href="recipients.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator" aria-current="page">
-                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📱</span>
-                    Recipients
-                </a>
-
-                <a href="message-settings.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
-                    <span class="icon-chip icon-chip--menu" aria-hidden="true">✉️</span>
-                    Messages
-                </a>
-
-                <a href="ota.html" class="nav-dropdown-item" role="menuitem" data-min-role="admin">
-                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🔧</span>
-                    Firmware
-                </a>
-
-                <a href="dashboard.html#settings" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
-                    <span class="icon-chip icon-chip--menu" aria-hidden="true">⚙️</span>
-                    Settings
-                </a>
-
-                <div class="nav-dropdown-divider"></div>
-
-                <button type="button" class="nav-dropdown-item nav-dropdown-item--logout" role="menuitem" onclick="logout()">
-                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🚪</span>
-                    Log out
-                </button>
-
-            </div>
-
-        </div>
-
-    </div>
-
-</nav>
-
-<noscript>
-    <div class="container"><p class="lede">This page needs JavaScript to load live data. Turn it on and reload.</p></div>
-</noscript>
-
-<main class="container" id="main">
-
-<a href="dashboard.html" class="back-link"><span class="back-link-arrow" aria-hidden="true">←</span> Dashboard</a>
-
-<h1>📱 Recipients</h1>
-
-<p class="lede">
-    People on this list get an SMS and an email when the water level reaches Alert, Critical or Danger.
-</p>
-
-<form class="card form-card" id="recipientForm" onsubmit="addRecipient(event)">
-
-    <div class="form-grid">
+        <h1>Sign up</h1>
+        <p class="lede">Create an account to see current water levels.</p>
 
         <div class="field">
-            <label for="recipientName">Full name</label>
-            <input id="recipientName" autocomplete="off" required>
+            <label for="name">Full name</label>
+            <input id="name" type="text" autocomplete="name" required>
         </div>
 
         <div class="field">
-            <label for="mobileNumber">Mobile number</label>
-            <input id="mobileNumber" type="tel" inputmode="tel" autocomplete="off" required>
+            <label for="email">Email</label>
+            <input id="email" type="email" autocomplete="email" required>
         </div>
 
         <div class="field">
-            <label for="email">Gmail account <span class="field-hint">(optional)</span></label>
-            <input id="email" type="email" autocomplete="off">
+            <label for="password">Password</label>
+            <input id="password" type="password" autocomplete="new-password" minlength="6" required>
+            <span class="field-hint">At least 6 characters.</span>
         </div>
 
-    </div>
+        <button class="btn" id="registerButton" type="submit">Sign up</button>
 
-    <div class="form-actions">
-        <button class="btn" id="submitButton" type="submit">Add recipient</button>
-        <button class="btn btn--secondary" id="cancelEditButton" type="button" onclick="cancelEditRecipient()" hidden>Cancel</button>
-    </div>
+        <p class="form-status" id="message" role="status" aria-live="polite"></p>
 
-</form>
+        <p class="signup-foot">
+            Already have an account? <a href="login.html">Log in</a>
+        </p>
 
-<div class="card table-card">
-    <table id="recipientTable">
-        <thead>
-            <tr>
-                <th scope="col">Name</th>
-                <th scope="col">Mobile</th>
-                <th scope="col">Email</th>
-                <th scope="col">Status</th>
-                <th scope="col">Action</th>
-            </tr>
-        </thead>
-        <tbody id="recipientBody">
-            <tr class="table-empty"><td colspan="5">Loading recipients…</td></tr>
-        </tbody>
-    </table>
-</div>
+    </form>
 
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="supabase-config.js"></script>
-<script src="nav.js"></script>
-<script src="recipients.js"></script>
+<script src="register.js"></script>
 
 </body>
 </html>
