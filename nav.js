@@ -11,6 +11,15 @@
 
 const ROLE_RANK = { viewer: 0, moderator: 1, admin: 2 };
 
+// Pages a signed-out visitor is allowed to see. Everything else
+// sends them to the login page.
+const PUBLIC_PAGES = [
+    "",
+    "index.html", "index",
+    "login.html", "login",
+    "register.html", "register"
+];
+
 let currentRole = "viewer";
 
 // Resolves once, with { user, profile, role } — or null if the visitor
@@ -22,7 +31,13 @@ const navReady = (async function initNav() {
     const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
 
     if (userError || !user) {
-        window.location.replace("login.html");
+
+        const currentPage = window.location.pathname.split("/").pop();
+
+        if (!PUBLIC_PAGES.includes(currentPage)) {
+            window.location.replace("login.html");
+        }
+
         return null;
     }
 
@@ -75,6 +90,14 @@ async function requireRole(minRole, deniedMessage) {
     const session = await navReady;
 
     if (!session) {
+
+        // Signed out on a protected page: go to login.
+        const currentPage = window.location.pathname.split("/").pop();
+
+        if (!PUBLIC_PAGES.includes(currentPage)) {
+            window.location.replace("login.html");
+        }
+
         return false;
     }
 
