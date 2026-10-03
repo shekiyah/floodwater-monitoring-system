@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0E3B4D">
+<meta name="robots" content="noindex">
+<title>Dashboard — Flood Monitoring System</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<nav aria-label="Main">
+
+    <a class="brand" href="dashboard.html">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3c4.6 5.7 8.5 10 8.5 14.6a8.5 8.5 0 0 1-17 0C7.5 13 11.4 8.7 16 3z" fill="#E6B25E"/><path d="M9.6 18.4c1.6-1.4 3.2-1.4 4.8 0s3.2 1.4 4.8 0 2.2-.9 3-.4" fill="none" stroke="#0E3B4D" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>Flood Monitoring System</span>
+    </a>
+
+    <div class="user-account">
+        <span id="userName">Loading user…</span>
+        <small id="userRole"></small>
+    </div>
+
+    <div class="nav-actions">
+
+        <a href="dashboard.html" class="nav-icon-link" title="Dashboard" aria-current="page">
+            <span class="icon-chip icon-chip--menu" aria-hidden="true">🏠</span>
+            <span class="nav-icon-label">Dashboard</span>
+        </a>
+
+        <div class="nav-menu">
+
+            <button type="button" class="menu-button" id="menuButton"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="navDropdown"
+                    onclick="toggleMenu()">
+                <svg viewBox="0 0 20 16" width="20" height="16" aria-hidden="true">
+                    <rect y="0" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                    <rect y="6.8" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                    <rect y="13.6" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                </svg>
+                <span class="sr-only">Menu</span>
+            </button>
+
+            <div class="nav-dropdown" id="navDropdown" role="menu">
+
+                <a href="telemetry.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📶</span>
+                    Telemetry
+                </a>
+
+                <a href="history.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📊</span>
+                    History logs
+                </a>
+
+                <a href="recipients.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📱</span>
+                    Recipients
+                </a>
+
+                <a href="message-settings.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">✉️</span>
+                    Messages
+                </a>
+
+                <a href="ota.html" class="nav-dropdown-item" role="menuitem" data-min-role="admin">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🔧</span>
+                    Firmware
+                </a>
+
+                <a href="dashboard.html#settings" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">⚙️</span>
+                    Settings
+                </a>
+
+                <div class="nav-dropdown-divider"></div>
+
+                <button type="button" class="nav-dropdown-item nav-dropdown-item--logout" role="menuitem" onclick="logout()">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🚪</span>
+                    Log out
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</nav>
+
+<noscript>
+    <div class="container"><p class="lede">This page needs JavaScript to load live data. Turn it on and reload.</p></div>
+</noscript>
+
+    <!-- Main Dashboard -->
+    <main class="container" id="main">
+
+        <div class="page-header">
+
+            <div>
+                <h1>Dashboard</h1>
+
+                <p>
+                    Real-time flood and water-level monitoring
+                </p>
+            </div>
+
+        </div>
+
+
+        <!-- Warning Message -->
+        <div
+            id="alertBox"
+            class="alert-box"
+            role="alert"
+        ></div>
+
+
+        <!-- Main Status Cards -->
+        <section class="cards">
+
+            <article class="card card--gauge">
+
+                <svg class="station-icon" viewBox="0 0 56 62" aria-hidden="true">
+                    <line class="pole" x1="14" y1="10" x2="14" y2="58"/>
+                    <rect class="panel" x="4" y="4" width="16" height="8" rx="1.5" transform="rotate(-18 12 8)"/>
+                    <path class="arm" d="M14 20 H40"/>
+                    <path class="lead" d="M40 20 V44"/>
+                    <circle class="sensor" cx="40" cy="20" r="5"/>
+                    <circle class="pulse" cx="40" cy="20" r="1.6"/>
+                </svg>
+
+                <h3>💧 Water Level</h3>
+
+                <div
+                    class="water-level"
+                    id="waterLevel"
+                >
+                    Loading...
+                </div>
+
+                <div class="gauge-shell">
+
+                    <div
+                        class="gauge"
+                        role="img" aria-label="Water-level gauge, scaled 0 to 6.5 meters"
+                    >
+
+                        <div
+                            class="fill"
+                            id="waterFill"
+                        ></div>
+
+                    </div>
+
+                    <div class="threshold threshold--danger" style="bottom:86.15%">
+                        <span class="threshold-label">5.6 DANGER</span>
+                    </div>
+
+                    <div class="threshold threshold--critical" style="bottom:61.54%">
+                        <span class="threshold-label">4.1 CRITICAL</span>
+                    </div>
+
+                    <div class="threshold threshold--alert" style="bottom:30.77%">
+                        <span class="threshold-label">2.1 ALERT</span>
+                    </div>
+
+                </div>
+
+                <p>Current monitored water level</p>
+
+            </article>
+
+
+            <article class="card card--status">
+
+                <h3><span class="icon-chip icon-chip--status">⚠️</span> Current Status</h3>
+
+                <p
+                    id="status"
+                    class="status-badge"
+                >
+                    Loading...
+                </p>
+
+            </article>
+
+
+            <article class="card card--sensor">
+
+                <h3><span class="icon-chip icon-chip--sensor">📡</span> Sensor Connection</h3>
+
+                <p id="sensorConnection" class="checking" aria-live="polite">Checking…</p>
+
+            </article>
+
+        </section>
+
+
+        <!-- Statistics -->
+        <section
+            class="info-cards"
+            id="readings"
+        >
+
+            <article class="card card--time">
+
+                <h3><span class="icon-chip icon-chip--time">📅</span> Last Reading</h3>
+
+                <p id="date">
+                    Loading...
+                </p>
+
+            </article>
+
+
+            <article class="card card--total">
+
+                <h3><span class="icon-chip icon-chip--total">📊</span> Total Readings</h3>
+
+                <p id="totalReadings">
+                    0
+                </p>
+
+            </article>
+
+
+            <article class="card card--high">
+
+                <h3><span class="icon-chip icon-chip--high">⬆️</span> Highest Level</h3>
+
+                <p id="highestLevel">
+                    0 m
+                </p>
+
+            </article>
+
+
+            <article class="card card--low">
+
+                <h3><span class="icon-chip icon-chip--low">⬇️</span> Lowest Level</h3>
+
+                <p id="lowestLevel">
+                    0 m
+                </p>
+
+            </article>
+
+        </section>
+
+
+        <!-- Water-Level Chart -->
+        <section
+            class="card chart-card"
+            id="reports"
+        >
+
+            <h3><span class="icon-chip icon-chip--chart">📈</span> Water-Level History</h3>
+
+            <!-- Admin/moderator only — hidden by default, shown by
+                 nav.js's applyPermissions() once the user's role is
+                 known. Lets them load a custom date range instead
+                 of always showing today. -->
+            <div class="chart-period-buttons" id="chartPeriodButtons" data-min-role="moderator">
+
+                <div class="chart-custom-range" id="chartCustomRange">
+                    <span class="chart-custom-range-label">Custom:</span>
+                    <input type="date" id="chartCustomStart" aria-label="Custom range start date">
+                    <span class="chart-custom-range-label">to</span>
+                    <input type="date" id="chartCustomEnd" aria-label="Custom range end date">
+                    <button type="button" class="chart-period-btn" onclick="selectCustomChartRange()">Apply</button>
+                </div>
+
+            </div>
+
+            <div class="chart-area">
+
+                <div class="chart-canvas-wrap">
+                    <canvas id="waterChart"></canvas>
+                </div>
+
+            </div>
+
+            <div class="chart-zoom-nav" id="chartZoomNav">
+
+                <input
+                    type="range"
+                    id="chartZoomSlider"
+                    class="chart-zoom-slider"
+                    min="0"
+                    max="0"
+                    value="0"
+                    step="1"
+                    oninput="onChartZoomSlide(this.value)"
+                    aria-label="Slide to a specific reading to zoom in"
+                >
+
+                <div class="chart-zoom-nav-row">
+
+                    <span id="chartZoomLabel" class="chart-zoom-label">
+                        No data
+                    </span>
+
+                    <button
+                        type="button"
+                        class="chart-point-btn"
+                        id="chartZoomReset"
+                        onclick="resetChartZoom()"
+                        disabled
+                    >
+                        Show Full Range
+                    </button>
+
+                </div>
+
+            </div>
+
+        </section>
+
+
+        <!-- Station settings: shortcuts to the pages each role can use -->
+        <section class="card settings-card card--settings" id="settings" data-min-role="moderator">
+
+            <h3><span class="icon-chip icon-chip--settings">⚙️</span> Station settings</h3>
+
+            <div class="settings-links">
+
+                <a class="settings-link" href="recipients.html">
+                    <strong>Recipients</strong>
+                    <span>Choose who gets SMS and email alerts.</span>
+                </a>
+
+                <a class="settings-link" href="message-settings.html">
+                    <strong>Alert messages</strong>
+                    <span>Edit the wording sent at each flood level.</span>
+                </a>
+
+                <a class="settings-link" href="ota.html" data-min-role="admin">
+                    <strong>Firmware</strong>
+                    <span>Upload and publish updates for the sensor device.</span>
+                </a>
+
+            </div>
+
+        </section>
+
+    </main>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="supabase-config.js"></script>
+<script src="chart-theme.js"></script>
+<script src="nav.js"></script>
+<script src="script.js"></script>
+
+</body>
+</html>

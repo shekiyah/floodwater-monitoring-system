@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0E3B4D">
+<meta name="description" content="Live river water levels and automatic SMS and email flood alerts. Log in or sign up to open the Flood Monitoring System dashboard.">
+<title>Flood Monitoring System — live river levels and flood alerts</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="welcome.css">
+</head>
+<body class="welcome">
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<header class="w-top">
+
+    <a class="w-brand" href="index.html"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3c4.6 5.7 8.5 10 8.5 14.6a8.5 8.5 0 0 1-17 0C7.5 13 11.4 8.7 16 3z" fill="#E6B25E"/><path d="M9.6 18.4c1.6-1.4 3.2-1.4 4.8 0s3.2 1.4 4.8 0 2.2-.9 3-.4" fill="none" stroke="#0E3B4D" stroke-width="1.8" stroke-linecap="round"/></svg><span>Flood Monitoring System</span></a>
+
+    <a class="w-link" href="login.html" data-auth="out">Log in</a>
+    <a class="w-link" href="dashboard.html" data-auth="in" hidden>Dashboard</a>
+
+</header>
+
+<main id="main">
+
+    <section class="hero" aria-labelledby="hero-title">
+
+        <div class="hero-inner">
+
+            <div class="hero-copy">
+
+                <h1 id="hero-title">Watch the water level. Get warned before it floods.</h1>
+
+                <p class="hero-lede">
+                    A sensor station measures the river around the clock and updates this dashboard live.
+                    When the level climbs into Alert, Critical or Danger, everyone on the contact list
+                    gets an SMS and an email.
+                </p>
+
+                <div class="hero-cta">
+                    <a class="cta cta--primary" href="register.html" data-auth="out">Sign up</a>
+                    <a class="cta cta--ghost" href="login.html" data-auth="out">Log in</a>
+                    <a class="cta cta--primary" href="dashboard.html" data-auth="in" hidden>Open dashboard</a>
+                </div>
+
+            </div>
+
+            <figure class="board" role="img" aria-label="Illustration: a water-level gauge whose pointer rises through the Normal, Alert, Critical and Danger zones.">
+
+                <div class="board-head" aria-hidden="true">
+                    <span class="board-title">How the gauge reads</span>
+                    <span class="board-state">
+                        <span class="state state--normal">Normal</span>
+                        <span class="state state--alert">Alert</span>
+                        <span class="state state--critical">Critical</span>
+                        <span class="state state--danger">Danger</span>
+                    </span>
+                </div>
+
+                <div class="board-body" aria-hidden="true">
+
+                    <div class="board-scale"><span style="bottom:0.00%">0</span><span style="bottom:15.38%">1</span><span style="bottom:30.77%">2</span><span style="bottom:46.15%">3</span><span style="bottom:61.54%">4</span><span style="bottom:76.92%">5</span><span style="bottom:92.31%">6 m</span></div>
+
+                    <div class="board-gauge"><div class="board-rider"></div></div>
+
+                    <div class="board-zones">
+                        <div class="zone zone--danger">Danger<small>Above 5.5 m</small></div>
+                        <div class="zone zone--critical">Critical<small>4.0 to 5.5 m</small></div>
+                        <div class="zone zone--alert">Alert<small>2.0 to 4.0 m</small></div>
+                        <div class="zone zone--normal">Normal<small>Up to 2.0 m</small></div>
+                    </div>
+
+                </div>
+
+            </figure>
+
+        </div>
+
+    </section>
+
+    <section class="facts" aria-label="What the system does">
+
+        <div class="facts-inner">
+
+            <article class="fact">
+                <svg viewBox="0 0 34 34" aria-hidden="true"><rect x="10" y="3" width="11" height="28" rx="2"/><path d="M10 10h5M10 17h5M10 24h5"/><path d="M30 14l-6 3 6 3z"/></svg>
+                <h2>A live gauge</h2>
+                <p>See the current level on a banded gauge, with the highest and lowest readings and a chart of recent changes.</p>
+            </article>
+
+            <article class="fact">
+                <svg viewBox="0 0 34 34" aria-hidden="true"><path d="M17 4a8 8 0 0 0-8 8v6l-3 4.5h22L25 18v-6a8 8 0 0 0-8-8z"/><path d="M13.5 27.5a3.5 3.5 0 0 0 7 0"/></svg>
+                <h2>Alerts that send themselves</h2>
+                <p>SMS and email go to your contact list as soon as a level is reached, with wording you write for each one.</p>
+            </article>
+
+            <article class="fact">
+                <svg viewBox="0 0 34 34" aria-hidden="true"><circle cx="17" cy="17" r="12.5"/><path d="M17 9v8.5l5.5 3.2"/></svg>
+                <h2>Every reading kept</h2>
+                <p>Moderators and admins can search the full history and export any date range to Excel.</p>
+            </article>
+
+        </div>
+
+    </section>
+
+</main>
+
+<footer class="w-foot">
+
+    <a class="w-brand" href="index.html"><svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3c4.6 5.7 8.5 10 8.5 14.6a8.5 8.5 0 0 1-17 0C7.5 13 11.4 8.7 16 3z" fill="#E6B25E"/><path d="M9.6 18.4c1.6-1.4 3.2-1.4 4.8 0s3.2 1.4 4.8 0 2.2-.9 3-.4" fill="none" stroke="#0E3B4D" stroke-width="1.8" stroke-linecap="round"/></svg><span>Flood Monitoring System</span></a>
+
+    <nav aria-label="Footer">
+        <a href="login.html" data-auth="out">Log in</a>
+        <a href="register.html" data-auth="out">Sign up</a>
+        <a href="dashboard.html" data-auth="in" hidden>Dashboard</a>
+    </nav>
+
+</footer>
+
+<script src="welcome.js"></script>
+
+</body>
+</html>

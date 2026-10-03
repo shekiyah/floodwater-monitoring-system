@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<title>
+Recipient Management
+</title>
+
+<link rel="stylesheet" href="style.css">
+
+</head>
+
+
+<body>
+
+
+<nav>
+
+    <div class="brand">
+        <h2>💧 Flood Monitoring System</h2>
+    </div>
+
+    <div class="user-account">
+        <span id="userName">Loading user...</span>
+        <small id="userRole"></small>
+    </div>
+
+    <div class="nav-actions">
+
+        <a href="index.html#dashboard" class="nav-icon-link" title="Dashboard">
+            <span class="icon-chip icon-chip--menu" aria-hidden="true">🏠</span>
+            <span class="nav-icon-label">Dashboard</span>
+        </a>
+
+        <div class="nav-menu">
+
+            <button
+                type="button"
+                class="menu-button"
+                id="menuButton"
+                aria-haspopup="true"
+                aria-expanded="false"
+                aria-controls="navDropdown"
+                onclick="toggleMenu()"
+            >
+                <svg viewBox="0 0 20 16" width="20" height="16" aria-hidden="true">
+                    <rect y="0" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                    <rect y="6.8" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                    <rect y="13.6" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                </svg>
+                <span class="sr-only">Menu</span>
+            </button>
+
+            <div class="nav-dropdown" id="navDropdown" role="menu">
+
+                <a href="telemetry.html" id="telemetryMenu" class="nav-dropdown-item" role="menuitem">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📶</span>
+                    Telemetry
+                </a>
+
+                <a href="history.html" id="historyMenu" class="nav-dropdown-item" role="menuitem">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📊</span>
+                    History Logs
+                </a>
+
+                <a href="recipients.html" id="recipientMenu" class="nav-dropdown-item" role="menuitem">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📱</span>
+                    Recipients
+                </a>
+
+                <a href="message-settings.html" id="messageMenu" class="nav-dropdown-item" role="menuitem">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">✉️</span>
+                    Messages
+                </a>
+
+                <a href="ota.html" id="firmwareMenu" class="nav-dropdown-item" role="menuitem">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🔧</span>
+                    Firmware
+                </a>
+
+                <a href="index.html#settings" id="settingsMenu" class="nav-dropdown-item" role="menuitem">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">⚙️</span>
+                    Settings
+                </a>
+
+                <div class="nav-dropdown-divider"></div>
+
+                <button
+                    type="button"
+                    class="nav-dropdown-item nav-dropdown-item--logout"
+                    role="menuitem"
+                    onclick="logout()"
+                >
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🚪</span>
+                    Logout
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</nav>
+
+
+
+<div class="container">
+
+
+<a href="index.html#dashboard" class="back-link">
+<span class="back-link-arrow" aria-hidden="true">←</span> Dashboard
+</a>
+
+
+<h1>
+📱 Recipient Management
+</h1>
+
+
+
+<div class="card">
+
+
+<input 
+id="recipientName"
+placeholder="Full Name">
+
+
+<input
+id="mobileNumber"
+placeholder="Mobile Number">
+
+
+<input
+id="email"
+placeholder="Gmail Account">
+
+
+
+<button id="submitButton" onclick="addRecipient()">
+
+Add Recipient
+
+</button>
+
+<button id="cancelEditButton" onclick="cancelEditRecipient()" style="display:none;">
+
+Cancel
+
+</button>
+
+
+</div>
+
+
+
+<table class="card"
+id="recipientTable">
+
+
+<tr>
+
+<th>
+Name
+</th>
+
+
+<th>
+Mobile
+</th>
+
+
+<th>
+Email
+</th>
+
+
+<th>
+Status
+</th>
+
+
+<th>
+Action
+</th>
+
+
+</tr>
+
+
+</table>
+
+
+
+</div>
+
+
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script src="supabase-config.js"></script>
+
+<script src="nav.js"></script>
+
+<script src="recipients.js"></script>
+
+
+</body>
+
+</html>

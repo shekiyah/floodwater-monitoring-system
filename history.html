@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0E3B4D">
+<meta name="robots" content="noindex">
+<title>History logs — Flood Monitoring System</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<nav aria-label="Main">
+
+    <a class="brand" href="dashboard.html">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3c4.6 5.7 8.5 10 8.5 14.6a8.5 8.5 0 0 1-17 0C7.5 13 11.4 8.7 16 3z" fill="#E6B25E"/><path d="M9.6 18.4c1.6-1.4 3.2-1.4 4.8 0s3.2 1.4 4.8 0 2.2-.9 3-.4" fill="none" stroke="#0E3B4D" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>Flood Monitoring System</span>
+    </a>
+
+    <div class="user-account">
+        <span id="userName">Loading user…</span>
+        <small id="userRole"></small>
+    </div>
+
+    <div class="nav-actions">
+
+        <a href="dashboard.html" class="nav-icon-link" title="Dashboard">
+            <span class="icon-chip icon-chip--menu" aria-hidden="true">🏠</span>
+            <span class="nav-icon-label">Dashboard</span>
+        </a>
+
+        <div class="nav-menu">
+
+            <button type="button" class="menu-button" id="menuButton"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="navDropdown"
+                    onclick="toggleMenu()">
+                <svg viewBox="0 0 20 16" width="20" height="16" aria-hidden="true">
+                    <rect y="0" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                    <rect y="6.8" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                    <rect y="13.6" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                </svg>
+                <span class="sr-only">Menu</span>
+            </button>
+
+            <div class="nav-dropdown" id="navDropdown" role="menu">
+
+                <a href="telemetry.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📶</span>
+                    Telemetry
+                </a>
+
+                <a href="history.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator" aria-current="page">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📊</span>
+                    History logs
+                </a>
+
+                <a href="recipients.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📱</span>
+                    Recipients
+                </a>
+
+                <a href="message-settings.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">✉️</span>
+                    Messages
+                </a>
+
+                <a href="ota.html" class="nav-dropdown-item" role="menuitem" data-min-role="admin">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🔧</span>
+                    Firmware
+                </a>
+
+                <a href="dashboard.html#settings" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">⚙️</span>
+                    Settings
+                </a>
+
+                <div class="nav-dropdown-divider"></div>
+
+                <button type="button" class="nav-dropdown-item nav-dropdown-item--logout" role="menuitem" onclick="logout()">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🚪</span>
+                    Log out
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</nav>
+
+<noscript>
+    <div class="container"><p class="lede">This page needs JavaScript to load live data. Turn it on and reload.</p></div>
+</noscript>
+
+<main class="container" id="main">
+
+<a href="dashboard.html" class="back-link"><span class="back-link-arrow" aria-hidden="true">←</span> Dashboard</a>
+
+<h1>📊 Flood history logs</h1>
+
+<!-- Admin/moderator only. One date range feeds Search, Download and
+     Delete; Delete is admin-only and hidden separately. -->
+<div class="card history-range" id="historyCustomRange" data-min-role="moderator">
+
+    <span class="chart-custom-range-label">Date range</span>
+    <input type="date" id="historyCustomStart" aria-label="Start date">
+    <span class="chart-custom-range-label">to</span>
+    <input type="date" id="historyCustomEnd" aria-label="End date">
+
+    <button type="button" class="btn btn--secondary" onclick="searchCustomRange()">Search</button>
+    <button type="button" class="btn btn--secondary" onclick="downloadCustomRange()">Download Excel</button>
+    <button type="button" class="btn btn--danger" id="historyDeleteBtn" data-min-role="admin" onclick="deleteCustomRangeData()">Delete</button>
+
+    <p class="danger-note" id="historyDeleteNote" data-min-role="admin">
+        Delete permanently removes every reading in the selected range. This cannot be undone.
+    </p>
+
+</div>
+
+<div class="card table-card">
+    <table id="historyTable">
+        <thead>
+            <tr>
+                <th scope="col">Date</th>
+                <th scope="col">Water level</th>
+                <th scope="col">Status</th>
+                <th scope="col">Device</th>
+            </tr>
+        </thead>
+        <tbody id="historyBody">
+            <tr class="table-empty"><td colspan="4">Loading readings…</td></tr>
+        </tbody>
+    </table>
+</div>
+
+<p class="table-meta" id="historyMeta" aria-live="polite"></p>
+
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="supabase-config.js"></script>
+<script src="nav.js"></script>
+<script src="history.js"></script>
+
+</body>
+</html>
