@@ -11,60 +11,20 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
-<style>
-    .signup-wrap {
-        max-width: 440px;
-        margin: 0 auto;
-        padding: 32px 16px 48px;
-    }
-
-    .signup-brand {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-        margin-bottom: 20px;
-        text-decoration: none;
-        color: #0E3B4D;
-        font-family: "Barlow Semi Condensed", sans-serif;
-        font-weight: 700;
-        font-size: 1.4rem;
-    }
-
-    .signup-wrap .field {
-        margin-bottom: 16px;
-    }
-
-    .signup-wrap input {
-        width: 100%;
-        box-sizing: border-box;
-    }
-
-    .signup-wrap .btn {
-        width: 100%;
-    }
-
-    .signup-foot {
-        margin-top: 18px;
-        text-align: center;
-    }
-</style>
 </head>
 <body>
 
-<a class="skip-link" href="#main">Skip to main content</a>
+<main class="auth" id="main">
 
-<main class="signup-wrap" id="main">
-
-    <a class="signup-brand" href="index.html">
-        <svg class="brand-mark" viewBox="0 0 32 32" width="32" height="32" aria-hidden="true"><path d="M16 3c4.6 5.7 8.5 10 8.5 14.6a8.5 8.5 0 0 1-17 0C7.5 13 11.4 8.7 16 3z" fill="#E6B25E"/><path d="M9.6 18.4c1.6-1.4 3.2-1.4 4.8 0s3.2 1.4 4.8 0 2.2-.9 3-.4" fill="none" stroke="#0E3B4D" stroke-width="1.8" stroke-linecap="round"/></svg>
+    <a class="auth-brand" href="index.html">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3c4.6 5.7 8.5 10 8.5 14.6a8.5 8.5 0 0 1-17 0C7.5 13 11.4 8.7 16 3z" fill="#E6B25E"/><path d="M9.6 18.4c1.6-1.4 3.2-1.4 4.8 0s3.2 1.4 4.8 0 2.2-.9 3-.4" fill="none" stroke="#0E3B4D" stroke-width="1.8" stroke-linecap="round"/></svg>
         <span>Flood Monitoring System</span>
     </a>
 
-    <form class="card form-card" id="registerForm" onsubmit="register(event)">
+    <form class="login-box" id="registerForm" onsubmit="register(event)" novalidate>
 
         <h1>Sign up</h1>
-        <p class="lede">Create an account to see current water levels.</p>
+        <p class="auth-sub">Create an account to see current water levels.</p>
 
         <div class="field">
             <label for="name">Full name</label>
@@ -86,7 +46,7 @@
 
         <p class="form-status" id="message" role="status" aria-live="polite"></p>
 
-        <p class="signup-foot">
+        <p class="auth-alt">
             Already have an account? <a href="login.html">Log in</a>
         </p>
 
