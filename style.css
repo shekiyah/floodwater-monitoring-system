@@ -633,9 +633,22 @@ textarea:focus {
 
 /* 6. Dashboard cards & gauge ================================ */
 
+.dash-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    gap: 20px;
+    align-items: start;
+}
+
+.dash-side {
+    display: grid;
+    gap: 20px;
+    min-width: 0;
+}
+
 .cards {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 20px;
 }
 
@@ -643,8 +656,9 @@ textarea:focus {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
     gap: 20px;
-    margin-top: 24px;
 }
+
+.info-cards .card { padding: 18px 14px; }
 
 .card--status   { border-top-color: var(--brass);            background: linear-gradient(180deg, #FBF3E7 0%, var(--paper) 65%); }
 .card--sensor   { border-top-color: var(--river-deep-light); background: linear-gradient(180deg, #EAF6F8 0%, var(--paper) 65%); }
@@ -1204,8 +1218,7 @@ canvas { max-width: 100%; }
 
 @media (max-width: 1000px) {
 
-    .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-    .card--gauge { grid-column: 1 / -1; }
+    .dash-grid { grid-template-columns: 1fr; }
 
     .info-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
