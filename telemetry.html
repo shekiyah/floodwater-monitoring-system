@@ -11,6 +11,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="speed-card.css">
 </head>
 <body>
 
@@ -152,6 +153,59 @@
                 <canvas id="telemetryStatusChart"></canvas>
             </div>
 
+        </div>
+
+    </section>
+
+
+    <section class="card chart-card speed-card" id="speedCard">
+
+        <div class="speed-head">
+            <h3><span class="icon-chip icon-chip--telemetry">🚀</span> Connection Speed</h3>
+            <span id="speedUpdated" class="speed-updated">Waiting for data…</span>
+        </div>
+
+        <div class="speed-gauge-wrap">
+            <svg class="speed-gauge" viewBox="0 0 300 250" role="img" aria-label="Upload speed gauge">
+                <defs>
+                    <linearGradient id="gaugeGradient" x1="0" y1="1" x2="1" y2="0">
+                        <stop offset="0" stop-color="#7c5cff"/>
+                        <stop offset="1" stop-color="#ff6bf2"/>
+                    </linearGradient>
+                </defs>
+                <path id="gaugeTrack" class="gauge-track" d=""/>
+                <path id="gaugeProgress" class="gauge-progress" d=""/>
+                <g id="gaugeTicks"></g>
+                <polygon id="gaugeNeedle" class="gauge-needle" points="150,146 214,149 214,151 150,154"/>
+                <circle class="gauge-hub" cx="150" cy="150" r="8"/>
+                <text id="gaugeValue" class="gauge-value" x="150" y="206">—</text>
+                <text class="gauge-unit" x="150" y="228">⬆ Mbps (upload)</text>
+            </svg>
+        </div>
+
+        <div class="speed-stats">
+            <div class="speed-stat">
+                <span class="speed-stat-label">⚡ Ping</span>
+                <span class="speed-stat-value" id="speedPing">—</span>
+            </div>
+            <div class="speed-stat">
+                <span class="speed-stat-label">〰 Jitter</span>
+                <span class="speed-stat-value" id="speedJitter">—</span>
+            </div>
+            <div class="speed-stat">
+                <span class="speed-stat-label">📦 Data used today</span>
+                <span class="speed-stat-value" id="speedData">—</span>
+            </div>
+        </div>
+
+        <p class="speed-note">
+            Measured by the station from its own Supabase uploads over the GSM link,
+            so values are lower than a phone speed test.
+        </p>
+
+        <div class="telemetry-chart speed-chart">
+            <h4 class="mini-heading">Upload Speed &amp; Ping (48h)</h4>
+            <canvas id="telemetrySpeedChart"></canvas>
         </div>
 
     </section>

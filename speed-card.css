@@ -1,0 +1,53 @@
+/* Connection speed card (Speedtest-style) for telemetry.html */
+.card.speed-card {
+    background: linear-gradient(160deg, #181b3b 0%, #0f1126 100%);
+    color: #e9ebff;
+    border: 1px solid rgba(160, 120, 255, 0.18);
+    margin-top: 20px;
+}
+.speed-card h3 { color: #e9ebff; }
+
+.speed-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+.speed-updated { font-size: 0.8rem; color: #9aa0c8; }
+.speed-updated.is-stale { color: #f0b35c; }
+
+.speed-gauge-wrap { max-width: 340px; margin: 6px auto 0; }
+.speed-gauge { width: 100%; height: auto; display: block; }
+
+.gauge-track { fill: none; stroke: #272b52; stroke-width: 16; stroke-linecap: round; }
+.gauge-progress { fill: none; stroke: url(#gaugeGradient); stroke-width: 16; stroke-linecap: round; transition: d 0.8s ease; }
+.gauge-tick { fill: #9aa0c8; font: 600 11px "IBM Plex Mono", monospace; text-anchor: middle; dominant-baseline: middle; }
+.gauge-needle { fill: #ffffff; transform-origin: 150px 150px; transition: transform 0.8s cubic-bezier(.2,.8,.2,1); }
+.gauge-hub { fill: #0f1126; stroke: #3a3f73; stroke-width: 2; }
+.gauge-value { fill: #ffffff; font: 400 38px "IBM Plex Mono", monospace; text-anchor: middle; }
+.gauge-unit { fill: #b9a1ff; font: 600 12px "Public Sans", sans-serif; text-anchor: middle; }
+
+.speed-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 12px;
+    margin-top: 10px;
+}
+.speed-stat {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.speed-stat-label { font-size: 0.78rem; color: #9aa0c8; letter-spacing: 0.02em; }
+.speed-stat-value { font: 600 1.35rem "IBM Plex Mono", monospace; color: #ffffff; }
+.speed-stat-value small { font: 400 0.75rem "Public Sans", sans-serif; color: #9aa0c8; margin-left: 4px; }
+
+.speed-note { margin: 12px 2px 0; font-size: 0.78rem; color: #9aa0c8; }
+
+.speed-chart { margin-top: 16px; }
+.speed-chart .mini-heading { color: #c9ccf0; }
