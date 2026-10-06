@@ -10,9 +10,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="dashboard-pro.css">
 </head>
-<body>
+<body class="dash-pro">
 
 <a class="skip-link" href="#main">Skip to main content</a>
 
@@ -99,35 +101,47 @@
     <div class="container"><p class="lede">This page needs JavaScript to load live data. Turn it on and reload.</p></div>
 </noscript>
 
-    <!-- Main Dashboard -->
     <main class="container" id="main">
 
         <div class="page-header">
-
             <div>
                 <h1>Dashboard</h1>
-
-                <p>
-                    Real-time flood and water-level monitoring
-                </p>
+                <p>Real-time flood and water-level monitoring</p>
             </div>
-
         </div>
 
+        <div id="alertBox" class="alert-box" role="alert"></div>
 
-        <!-- Warning Message -->
-        <div
-            id="alertBox"
-            class="alert-box"
-            role="alert"
-        ></div>
+        <section class="kpi-strip" id="readings">
+        <article class="card tile" style="--tc:#E8B93A">
+            <h3><span class="glyph" aria-hidden="true">⚠️</span> Current status</h3>
+            <p id="status" class="status-badge">Loading...</p>
+        </article>
+        <article class="card tile" style="--tc:#4cc3e8">
+            <h3><span class="glyph" aria-hidden="true">📡</span> Sensor connection</h3>
+            <p id="sensorConnection" class="checking" aria-live="polite">Checking…</p>
+        </article>
+        <article class="card tile" style="--tc:#8aa5b5">
+            <h3><span class="glyph" aria-hidden="true">📅</span> Last reading</h3>
+            <p id="date" class="kpi-date">Loading...</p>
+        </article>
+        <article class="card tile" style="--tc:#4cc3e8">
+            <h3><span class="glyph" aria-hidden="true">📊</span> Total readings</h3>
+            <p id="totalReadings">0</p>
+        </article>
+        <article class="card tile" style="--tc:#E2711D">
+            <h3><span class="glyph" aria-hidden="true">⬆️</span> Highest level</h3>
+            <p id="highestLevel">0 m</p>
+        </article>
+        <article class="card tile" style="--tc:#2E9E4F">
+            <h3><span class="glyph" aria-hidden="true">⬇️</span> Lowest level</h3>
+            <p id="lowestLevel">0 m</p>
+        </article>
+        </section>
 
+        <div class="dash-main">
 
-        <!-- Gauge (left) + status, sensor and stats (right) -->
-        <div class="dash-grid">
-
-
-            <article class="card card--gauge">
+        <article class="card card--gauge area-gauge">
 
                 <svg class="station-icon" viewBox="0 0 56 62" aria-hidden="true">
                     <line class="pole" x1="14" y1="10" x2="14" y2="58"/>
@@ -179,95 +193,8 @@
 
             </article>
 
-        <div class="dash-side">
-
-        <!-- Main Status Cards -->
-        <section class="cards">
-
-
-            <article class="card card--status">
-
-                <h3><span class="icon-chip icon-chip--status">⚠️</span> Current Status</h3>
-
-                <p
-                    id="status"
-                    class="status-badge"
-                >
-                    Loading...
-                </p>
-
-            </article>
-
-
-            <article class="card card--sensor">
-
-                <h3><span class="icon-chip icon-chip--sensor">📡</span> Sensor Connection</h3>
-
-                <p id="sensorConnection" class="checking" aria-live="polite">Checking…</p>
-
-            </article>
-
-        </section>
-
-
-        <!-- Statistics -->
         <section
-            class="info-cards"
-            id="readings"
-        >
-
-            <article class="card card--time">
-
-                <h3><span class="icon-chip icon-chip--time">📅</span> Last Reading</h3>
-
-                <p id="date">
-                    Loading...
-                </p>
-
-            </article>
-
-
-            <article class="card card--total">
-
-                <h3><span class="icon-chip icon-chip--total">📊</span> Total Readings</h3>
-
-                <p id="totalReadings">
-                    0
-                </p>
-
-            </article>
-
-
-            <article class="card card--high">
-
-                <h3><span class="icon-chip icon-chip--high">⬆️</span> Highest Level</h3>
-
-                <p id="highestLevel">
-                    0 m
-                </p>
-
-            </article>
-
-
-            <article class="card card--low">
-
-                <h3><span class="icon-chip icon-chip--low">⬇️</span> Lowest Level</h3>
-
-                <p id="lowestLevel">
-                    0 m
-                </p>
-
-            </article>
-
-        </section>
-
-        </div>
-
-        </div>
-
-        <!-- Water-Level Chart -->
-        <section
-            class="card chart-card"
+            class="card chart-card area-chart"
             id="reports"
         >
 
@@ -333,8 +260,31 @@
 
         </section>
 
+        <section class="card panel area-map" id="stationMap">
+            <div class="panel-head">
+                <h3><span class="glyph" aria-hidden="true">📍</span> Station location</h3>
+                <span class="panel-meta" id="mapCoords">—</span>
+            </div>
+            <div id="map" class="map-canvas" role="region" aria-label="Map showing where the monitoring station is installed"></div>
+        </section>
 
-        <!-- Station settings: shortcuts to the pages each role can use -->
+        <section class="card panel area-health" id="stationHealth" data-min-role="moderator">
+            <div class="panel-head">
+                <h3><span class="glyph" aria-hidden="true">🛰️</span> Station health</h3>
+                <a class="panel-link" href="telemetry.html">Details</a>
+            </div>
+            <ul class="health-list">
+                <li><span>Internet</span><b id="hInternet">—</b></li>
+                <li><span>Signal</span><b><span class="bars" id="hBars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span> <span id="hSignal">—</span></b></li>
+                <li><span>Device</span><b id="hDevice">—</b></li>
+                <li><span>Upload speed</span><b id="hSpeed">—</b></li>
+                <li><span>Ping</span><b id="hPing">—</b></li>
+            </ul>
+            <p class="health-updated" id="hUpdated">Waiting for data…</p>
+        </section>
+
+        </div>
+
         <section class="card settings-card card--settings" id="settings" data-min-role="moderator">
 
             <h3><span class="icon-chip icon-chip--settings">⚙️</span> Station settings</h3>
@@ -367,6 +317,8 @@
 <script src="supabase-config.js"></script>
 <script src="chart-theme.js"></script>
 <script src="nav.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="dashboard-extras.js"></script>
 <script src="script.js"></script>
 
 </body>

@@ -112,53 +112,16 @@
             <h1>📶 Telemetry</h1>
 
             <p>
-                GSM signal, internet, and device connectivity for the monitoring station
+                Upload speed, ping, and data usage of the monitoring station
             </p>
         </div>
 
     </div>
 
-    <section class="card chart-card telemetry-card">
-
-        <h3><span class="icon-chip icon-chip--telemetry">📶</span> Current Readout</h3>
-
-        <div class="telemetry-stats">
-
-            <div class="telemetry-stat">
-                <span class="telemetry-stat-label">Internet</span>
-                <span id="gsmStatus" class="telemetry-stat-value">Loading...</span>
-            </div>
-
-            <div class="telemetry-stat">
-                <span class="telemetry-stat-label">Signal</span>
-                <span id="gsmSignal" class="telemetry-stat-value">Loading...</span>
-            </div>
-
-            <div class="telemetry-stat">
-                <span class="telemetry-stat-label">Device</span>
-                <span id="deviceStatus" class="telemetry-stat-value">Loading...</span>
-            </div>
-
-        </div>
-
-        <div class="telemetry-charts">
-
-            <div class="telemetry-chart">
-                <h4 class="mini-heading">Signal Strength (48h)</h4>
-                <canvas id="telemetrySignalChart"></canvas>
-            </div>
-
-            <div class="telemetry-chart">
-                <h4 class="mini-heading">Connectivity (48h)</h4>
-                <canvas id="telemetryStatusChart"></canvas>
-            </div>
-
-        </div>
-
-    </section>
+    
 
 
-    <section class="card chart-card speed-card" id="speedCard">
+    <section class="card chart-card speed-card" id="speedCard" style="margin-top:0">
 
         <div class="speed-head">
             <h3><span class="icon-chip icon-chip--telemetry">🚀</span> Connection Speed</h3>

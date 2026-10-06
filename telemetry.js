@@ -16,44 +16,15 @@ async function loadSystemStatus() {
         return;
     }
 
-    const gsmStatus = document.getElementById("gsmStatus");
-    const gsmSignal = document.getElementById("gsmSignal");
-    const deviceStatus = document.getElementById("deviceStatus");
-
     if (!data || data.length === 0) {
-        gsmStatus.textContent = "No data yet";
-        gsmSignal.textContent = "No data yet";
-        deviceStatus.textContent = "No data yet";
+        document.getElementById("speedUpdated").textContent = "No data yet";
         return;
     }
 
-    const status = data[0];
-
     updateSpeedCard(data);
-
-    gsmStatus.textContent = status.internet_status;
-    gsmSignal.textContent = status.gsm_signal + "%";
-    deviceStatus.textContent = status.device_status;
 }
 
-// TELEMETRY HISTORY CHARTS
-// A status value counts as "online" if it looks like one of these
-// words, or is literally true/1. Adjust ONLINE_PATTERN if the device
-// firmware writes different strings into system_status.
-const ONLINE_PATTERN = /online|connected|active|up|true|^1$/i;
-
-function isOnline(value) {
-
-    if (value === true || value === 1) {
-        return true;
-    }
-
-    return ONLINE_PATTERN.test(String(value ?? ""));
-}
-
-let telemetrySignalChartInstance = null;
-let telemetryStatusChartInstance = null;
-
+// TELEMETRY HISTORY (speed chart)
 async function loadTelemetryHistory() {
 
     // 48-hour window keeps query cost bounded as system_status grows.
@@ -77,13 +48,6 @@ async function loadTelemetryHistory() {
 
     const labels = data.map(row => parseSupabaseTimestamp(row.updated_at).toLocaleString());
 
-    const signalLevels = data.map(row => Number(row.gsm_signal));
-    const internetOnline = data.map(row => isOnline(row.internet_status) ? 1 : 0);
-    const deviceOnline = data.map(row => isOnline(row.device_status) ? 1 : 0);
-
-    renderSignalChart(labels, signalLevels);
-    renderStatusChart(labels, internetOnline, deviceOnline);
-
     renderSpeedChart(
         labels,
         data.map(row => hasValue(row.upload_kbps) ? Number(row.upload_kbps) / 1000 : null),
@@ -103,104 +67,6 @@ const timeAxis = {
     grid: { display: false },
     ticks: { maxTicksLimit: 5, maxRotation: 0, autoSkip: true, callback: compactTick }
 };
-
-function renderSignalChart(labels, signalLevels) {
-
-    const ctx = document.getElementById("telemetrySignalChart");
-
-    if (telemetrySignalChartInstance) {
-        telemetrySignalChartInstance.destroy();
-    }
-
-    telemetrySignalChartInstance = new Chart(ctx, {
-
-        type: "line",
-
-        data: {
-            labels: labels,
-            datasets: [{
-                label: "GSM signal (%)",
-                data: signalLevels,
-                borderColor: "#16536B",
-                backgroundColor: "rgba(22, 83, 107, 0.10)",
-                fill: true,
-                borderWidth: 2,
-                tension: 0.25,
-                pointRadius: 0,
-                pointHoverRadius: 4
-            }]
-        },
-
-        options: {
-            responsive: true,
-            interaction: { mode: "index", intersect: false },
-            plugins: { legend: { display: false } },
-            scales: {
-                x: timeAxis,
-                y: {
-                    beginAtZero: true,
-                    max: 100,
-                    title: { display: true, text: "Signal %" }
-                }
-            }
-        }
-    });
-}
-
-function renderStatusChart(labels, internetOnline, deviceOnline) {
-
-    const ctx = document.getElementById("telemetryStatusChart");
-
-    if (telemetryStatusChartInstance) {
-        telemetryStatusChartInstance.destroy();
-    }
-
-    telemetryStatusChartInstance = new Chart(ctx, {
-
-        type: "line",
-
-        data: {
-            labels: labels,
-            datasets: [
-                {
-                    label: "Internet",
-                    data: internetOnline,
-                    borderColor: "#16536B",
-                    stepped: true,
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    pointHoverRadius: 4
-                },
-                {
-                    label: "Device",
-                    data: deviceOnline,
-                    borderColor: "#A9773B",
-                    stepped: true,
-                    borderWidth: 2,
-                    pointRadius: 0,
-                    pointHoverRadius: 4
-                }
-            ]
-        },
-
-        options: {
-            responsive: true,
-            interaction: { mode: "index", intersect: false },
-            scales: {
-                x: timeAxis,
-                y: {
-                    min: 0,
-                    max: 1,
-                    ticks: {
-                        stepSize: 1,
-                        callback: value => value === 1 ? "Online" : "Offline"
-                    }
-                }
-            }
-        }
-    });
-}
-
 
 // ---------------------------------------------------------------
 // CONNECTION SPEED CARD (Speedtest-style gauge)

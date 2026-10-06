@@ -408,9 +408,9 @@ if(!waterChartInstance){
 
                 data: [],
 
-                borderColor:"#16536B",
+                borderColor:"#4cc3e8",
 
-                backgroundColor:"rgba(22, 83, 107, 0.10)",
+                backgroundColor:"rgba(76, 195, 232, 0.14)",
 
                 fill:true,
 
