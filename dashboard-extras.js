@@ -2,10 +2,10 @@
 // supabaseClient and parseSupabaseTimestamp come from supabase-config.js.
 (function () {
 
-    // >>> EDIT THESE to where the station is installed. <<<
-    const STATION = { name: "Flood monitoring station", lat: 10.3157, lng: 123.8854, zoom: 15 };
+    // Station location (fixed, not from the ESP32).
+    const STATION = { name: "Flood monitoring station", lat: 11.086126, lng: 125.023385, zoom: 17 };
     const STALE_MIN = 10;
-    const COLORS = { normal: "#2E9E4F", alert: "#E8B93A", critical: "#E2711D", danger: "#D93A3A", unknown: "#6b8794" };
+    const PIN = { online: "#D93A3A", offline: "#8a949b" };   // red = online, grey = not online
 
     // Dark theme for the existing water-level chart.
     if (window.Chart) {
@@ -13,20 +13,30 @@
         Chart.defaults.borderColor = "rgba(140, 190, 215, 0.12)";
     }
 
+    // Free OpenStreetMap tiles, darkened with a CSS filter (pin and controls are not affected).
+    const mapStyle = document.createElement("style");
+    mapStyle.textContent = ".leaflet-tile-pane{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.5)}";
+    document.head.appendChild(mapStyle);
+
     let map, marker;
 
     const text = id => (document.getElementById(id)?.textContent || "").trim();
 
-    function statusKey() {
-        const t = text("status").toLowerCase();
-        return COLORS[t] ? t : "unknown";
+    // "Online" = the dashboard's Sensor connection tile says Connected
+    // (script.js fills #sensorConnection; "No recent data" or "Checking…" count as not online).
+    function isStationOnline() {
+        return /^connected/i.test(text("sensorConnection"));
     }
 
-    function makeIcon(key) {
+    function makeIcon(online) {
+        const color = online ? PIN.online : PIN.offline;
         return L.divIcon({
             className: "",
-            html: `<div class="st-marker" style="--c:${COLORS[key]}"></div>`,
-            iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -12]
+            html: `<svg width="28" height="38" viewBox="0 0 28 38" aria-hidden="true" style="display:block;filter:drop-shadow(0 2px 3px rgba(0,0,0,.5))">
+                       <path d="M14 1C6.8 1 1 6.7 1 13.7 1 23.6 14 37 14 37s13-13.4 13-23.3C27 6.7 21.2 1 14 1z" fill="${color}" stroke="#fff" stroke-width="2"/>
+                       <circle cx="14" cy="13.5" r="4.8" fill="#fff"/>
+                   </svg>`,
+            iconSize: [28, 38], iconAnchor: [14, 37], popupAnchor: [0, -34]
         });
     }
 
@@ -35,6 +45,7 @@
         const name = document.createElement("strong");
         name.textContent = STATION.name;
         box.append(name, document.createElement("br"),
+            `Connection: ${isStationOnline() ? "Online" : "Offline"}`, document.createElement("br"),
             `Water level: ${text("waterLevel") || "—"}`, document.createElement("br"),
             `Status: ${text("status") || "—"}`);
         return box;
@@ -42,14 +53,8 @@
 
     function refreshMarker() {
         if (!marker) return;
-        marker.setIcon(makeIcon(statusKey()));
+        marker.setIcon(makeIcon(isStationOnline()));
         marker.setPopupContent(popupNode());
-    }
-
-    function placeStation(lat, lng) {
-        marker.setLatLng([lat, lng]);
-        map.setView([lat, lng], STATION.zoom);
-        document.getElementById("mapCoords").textContent = `${lat.toFixed(5)}, ${lng.toFixed(5)}`;
     }
 
     function initMap() {
@@ -59,18 +64,18 @@
         map = L.map(el, { scrollWheelZoom: false, dragging: !L.Browser.mobile, tap: false })
             .setView([STATION.lat, STATION.lng], STATION.zoom);
 
-        L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png", {
-            maxZoom: 19, subdomains: "abcd",
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+        L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        marker = L.marker([STATION.lat, STATION.lng], { icon: makeIcon("unknown"), title: STATION.name })
+        marker = L.marker([STATION.lat, STATION.lng], { icon: makeIcon(false), title: STATION.name })
             .addTo(map).bindPopup(popupNode());
-        document.getElementById("mapCoords").textContent = `${STATION.lat.toFixed(5)}, ${STATION.lng.toFixed(5)}`;
+        document.getElementById("mapCoords").textContent = `${STATION.lat.toFixed(6)}, ${STATION.lng.toFixed(6)}`;
 
-        // script.js fills #status and #waterLevel; follow them.
+        // script.js fills these; follow them so the pin updates by itself.
         const obs = new MutationObserver(refreshMarker);
-        ["status", "waterLevel"].forEach(id => {
+        ["sensorConnection", "status", "waterLevel"].forEach(id => {
             const n = document.getElementById(id);
             if (n) obs.observe(n, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ["class"] });
         });
@@ -126,9 +131,7 @@
             u.textContent = a.t;
             u.classList.toggle("is-stale", a.stale);
         }
-
-        // Optional: if the device later sends GPS, the marker follows it.
-        if (map && has(r.latitude) && has(r.longitude)) placeStation(Number(r.latitude), Number(r.longitude));
+        // The pin stays at STATION above; device GPS is not used.
     }
 
     function init() {
