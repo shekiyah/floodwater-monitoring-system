@@ -12,7 +12,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
 <link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="dashboard-pro.css">
+<link rel="stylesheet" href="dashboard-pro.css?v=2">
 </head>
 <body class="dash-pro">
 
@@ -268,21 +268,6 @@
             <div id="map" class="map-canvas" role="region" aria-label="Map showing where the monitoring station is installed"></div>
         </section>
 
-        <section class="card panel area-health" id="stationHealth" data-min-role="moderator">
-            <div class="panel-head">
-                <h3><span class="glyph" aria-hidden="true">🛰️</span> Station health</h3>
-                <a class="panel-link" href="telemetry.html">Details</a>
-            </div>
-            <ul class="health-list">
-                <li><span>Internet</span><b id="hInternet">—</b></li>
-                <li><span>Signal</span><b><span class="bars" id="hBars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span> <span id="hSignal">—</span></b></li>
-                <li><span>Device</span><b id="hDevice">—</b></li>
-                <li><span>Upload speed</span><b id="hSpeed">—</b></li>
-                <li><span>Ping</span><b id="hPing">—</b></li>
-            </ul>
-            <p class="health-updated" id="hUpdated">Waiting for data…</p>
-        </section>
-
         </div>
 
         <section class="card settings-card card--settings" id="settings" data-min-role="moderator">
@@ -318,9 +303,9 @@
 <script src="chart-theme.js"></script>
 <script src="nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="dashboard-extras.js"></script>
+<script src="dashboard-extras.js?v=3"></script>
 <script src="script.js"></script>
-<script src="chart-download.js"></script>
+<script src="chart-download.js?v=2"></script>
 
 </body>
 </html>
