@@ -1,17 +1,38 @@
 /* chart-download.js
- * Adds "Download Image" buttons to:
+ * One-click "Download Image" buttons for:
  *   1) Water-Level History chart  (canvas #waterChart, table water_readings)
+ *      -> interval = the dashboard's Custom start/end dates
+ *         (#chartCustomStart / #chartCustomEnd). If they are empty, last 24 hours.
  *   2) Upload Speed & Ping chart  (canvas #telemetrySpeedChart, table system_status)
- * Pick an interval, data is fetched from Supabase for that exact interval,
- * drawn on a white off-screen chart and saved as PNG.
+ *      -> interval = last 48 hours (same as the chart on screen).
+ * Clicking the button fetches that interval from Supabase, draws a white
+ * off-screen chart and downloads the PNG immediately. No popup.
  *
- * Load it AFTER supabase-config.js, script.js and telemetry.js on the page(s) with the charts:
+ * Load it AFTER supabase-config.js, script.js and telemetry.js:
  *   <script src="chart-download.js"></script>
  * Uses: supabaseClient, parseSupabaseTimestamp (supabase-config.js), Chart.js.
  */
 (() => {
   const MAX_ROWS = 300000;   // safety cap per download
   const MAX_POINTS = 2000;   // points drawn in the image (min/max kept so spikes stay)
+
+  // Reads the dashboard's custom date inputs. Dates are local calendar dates and the
+  // end date is fully included (same rule as history.js). Falls back to last 24 hours.
+  function dashboardInterval() {
+    const s = document.getElementById('chartCustomStart');
+    const e = document.getElementById('chartCustomEnd');
+    const now = new Date();
+    if (s && e && s.value && e.value) {
+      const [sy, sm, sd] = s.value.split('-').map(Number);
+      const [ey, em, ed] = e.value.split('-').map(Number);
+      const from = new Date(sy, sm - 1, sd);
+      let to = new Date(ey, em - 1, ed + 1);
+      if (to > now) to = now;                 // don't show a future end time
+      if (from >= to) throw new Error('Start date must be on or before end date.');
+      return { from, to };
+    }
+    return { from: new Date(now - 24 * 3600e3), to: now };
+  }
 
   const CHARTS = [
     {
@@ -23,8 +44,7 @@
       series: [{ col: 'water_level', label: 'Water level (m)', color: '#0b7bb5', axis: 'y', fill: true }],
       axes: { y: { text: 'Meters', position: 'left', min: 0,
                    max: () => (typeof CHART_Y_MAX !== 'undefined' ? CHART_Y_MAX : 8) } },
-      presets: [['1', 'Last 1 hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'],
-                ['168', 'Last 7 days'], ['720', 'Last 30 days']],
+      interval: dashboardInterval,
       stats: { col: 'water_level', unit: 'm' },
       theme: 'cd-blue'
     },
@@ -39,14 +59,12 @@
         { col: 'ping_ms', label: 'Ping (ms)', color: '#0b9fc4', axis: 'y1' }
       ],
       axes: { y: { text: 'Mbps', position: 'left' }, y1: { text: 'ms', position: 'right' } },
-      presets: [['1', 'Last 1 hour'], ['6', 'Last 6 hours'], ['24', 'Last 24 hours'],
-                ['48', 'Last 48 hours'], ['168', 'Last 7 days'], ['720', 'Last 30 days']],
+      interval: () => { const to = new Date(); return { from: new Date(to - 48 * 3600e3), to }; },
       theme: 'cd-purple'
     }
   ];
 
   const pad = n => String(n).padStart(2, '0');
-  const toLocalInput = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
   const fmt = d => d.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const stampName = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
   const hasVal = v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
@@ -62,24 +80,13 @@
       .cd-btn:hover{filter:brightness(1.25)}
       .cd-btn:disabled{opacity:.6;cursor:wait}
       .cd-open{display:block;margin:10px auto}
-      .cd-back{position:fixed;inset:0;background:rgba(0,0,0,.6);display:none;align-items:center;justify-content:center;z-index:9999}
-      .cd-back.open{display:flex}
-      .cd-box{background:#0b1f2c;color:#dbeaf3;border:1px solid #1f4a63;border-radius:12px;padding:20px;width:min(380px,92vw)}
-      .cd-box h3{margin:0 0 14px;font-size:16px}
-      .cd-box label{display:block;font-size:12px;margin:10px 0 4px;opacity:.8}
-      .cd-box select,.cd-box input{width:100%;box-sizing:border-box;padding:8px;border-radius:6px;border:1px solid #1f4a63;background:#0f2a3a;color:#fff;font:inherit}
-      .cd-row{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
-      .cd-msg{font-size:12px;margin-top:10px;min-height:16px;color:#8fd3f4}
-      .cd-purple .cd-box{background:#12122b;border-color:#3a3a6e}
-      .cd-purple .cd-btn{background:#1b1b3a;border-color:#3a3a6e;color:#d9d3ff}
-      .cd-purple select,.cd-purple input{background:#1b1b3a;border-color:#3a3a6e}
-      .cd-purple .cd-msg{color:#b9a7ff}
+      .cd-btn.cd-purple{background:#1b1b3a;border-color:#3a3a6e;color:#d9d3ff}
     `;
     document.head.appendChild(s);
   }
 
   // ---------- data ----------
-  async function fetchRows(cfg, from, to, onProgress) {
+  async function fetchRows(cfg, from, to) {
     if (typeof supabaseClient === 'undefined') throw new Error('supabaseClient not found (load supabase-config.js first).');
     const cols = [cfg.timeCol, ...cfg.series.map(s => s.col)].join(',');
     const out = [], PAGE = 1000;
@@ -92,7 +99,6 @@
         .range(start, start + PAGE - 1);
       if (error) throw new Error(error.message);
       out.push(...data);
-      onProgress(out.length);
       if (data.length < PAGE) break;
     }
     return out.map(r => ({
@@ -188,56 +194,22 @@
     setTimeout(() => URL.revokeObjectURL(a.href), 2000);
   }
 
-  // ---------- modal ----------
-  function buildModal(cfg) {
-    const back = document.createElement('div');
-    back.className = `cd-back ${cfg.theme}`;
-    back.innerHTML = `
-      <div class="cd-box">
-        <h3>Download "${cfg.title}" as image</h3>
-        <label>Interval</label>
-        <select class="cd-preset">
-          ${cfg.presets.map(p => `<option value="${p[0]}">${p[1]}</option>`).join('')}
-          <option value="custom">Custom range…</option>
-        </select>
-        <div class="cd-custom" style="display:none">
-          <label>From</label><input type="datetime-local" class="cd-from">
-          <label>To</label><input type="datetime-local" class="cd-to">
-        </div>
-        <div class="cd-msg"></div>
-        <div class="cd-row">
-          <button type="button" class="cd-btn cd-cancel">Cancel</button>
-          <button type="button" class="cd-btn cd-go">Download PNG</button>
-        </div>
-      </div>`;
-    document.body.appendChild(back);
-    const q = s => back.querySelector(s);
-    const now = new Date();
-    q('.cd-to').value = toLocalInput(now);
-    q('.cd-from').value = toLocalInput(new Date(now - 24 * 3600e3));
-    q('.cd-preset').onchange = e => { q('.cd-custom').style.display = e.target.value === 'custom' ? 'block' : 'none'; };
-    q('.cd-cancel').onclick = () => back.classList.remove('open');
-    back.onclick = e => { if (e.target === back) back.classList.remove('open'); };
-    q('.cd-go').onclick = async () => {
-      const msg = q('.cd-msg'), btn = q('.cd-go');
-      try {
-        let from, to;
-        const v = q('.cd-preset').value;
-        if (v === 'custom') {
-          from = new Date(q('.cd-from').value); to = new Date(q('.cd-to').value);
-          if (isNaN(from) || isNaN(to) || from >= to) throw new Error('Choose a valid From and To (From must be earlier).');
-        } else { to = new Date(); from = new Date(to - Number(v) * 3600e3); }
-        btn.disabled = true; msg.textContent = 'Fetching readings…';
-        const rows = await fetchRows(cfg, from, to, n => { msg.textContent = `Fetching readings… ${n.toLocaleString()}`; });
-        if (!rows.length) throw new Error('No readings in that interval.');
-        msg.textContent = 'Drawing image…';
-        await renderAndDownload(cfg, rows, from, to);
-        msg.textContent = `Done — ${rows.length.toLocaleString()} readings.`;
-        setTimeout(() => back.classList.remove('open'), 900);
-      } catch (err) { msg.textContent = err.message || String(err); }
-      finally { btn.disabled = false; }
-    };
-    return back;
+  // ---------- one-click download ----------
+  async function runDownload(cfg, btn) {
+    const label = btn.textContent;
+    const flash = (text, ms) => { btn.textContent = text; setTimeout(() => { btn.textContent = label; }, ms); };
+    btn.disabled = true;
+    try {
+      const { from, to } = cfg.interval();
+      btn.textContent = 'Preparing image…';
+      const rows = await fetchRows(cfg, from, to);
+      if (!rows.length) { btn.disabled = false; flash('No readings in that interval', 3000); return; }
+      await renderAndDownload(cfg, rows, from, to);
+      btn.disabled = false; flash('✔ Downloaded', 1500);
+    } catch (err) {
+      console.error('chart-download:', err);
+      btn.disabled = false; flash(err.message || 'Download failed', 3500);
+    }
   }
 
   // ---------- mount ----------
@@ -245,11 +217,11 @@
     const canvas = document.getElementById(cfg.canvasId);
     if (!canvas || canvas.dataset.cdMounted) return;
     canvas.dataset.cdMounted = '1';
-    const modal = buildModal(cfg);
     const btn = document.createElement('button');
-    btn.type = 'button'; btn.className = 'cd-btn cd-open';
+    btn.type = 'button';
+    btn.className = `cd-btn cd-open ${cfg.theme === 'cd-purple' ? 'cd-purple' : ''}`;
     btn.textContent = '⬇ Download Image';
-    btn.onclick = () => modal.classList.add('open');
+    btn.onclick = () => runDownload(cfg, btn);
     // chart canvas usually sits inside a sized wrapper; put the button above that wrapper
     const holder = canvas.parentElement;
     holder.parentElement.insertBefore(btn, holder);
