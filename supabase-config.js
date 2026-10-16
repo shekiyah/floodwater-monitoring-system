@@ -42,11 +42,11 @@ function getFloodStatus(level) {
         return "NORMAL";
     }
 
-    if (level <= 4) {
+    if (level < 4) {
         return "ALERT";
     }
 
-    if (level <= 5.5) {
+    if (level < 6.4) {
         return "CRITICAL";
     }
 

@@ -730,8 +730,8 @@ textarea:focus {
     color: #fff;
 }
 
-/* Banded staff gauge. Scale 0-6.5 m maps to 0-100% of height; the
-   band edges (30.77 / 61.54 / 86.15%) must stay in sync with the
+/* Banded staff gauge. Scale 0-7 m maps to 0-100% of height; the
+   band edges (28.57 / 57.14 / 91.43%) must stay in sync with the
    threshold markers in dashboard.html and GAUGE_SCALE_MAX in
    script.js. */
 .gauge-shell {
@@ -747,10 +747,10 @@ textarea:focus {
     height: 100%;
     background: linear-gradient(
         to top,
-        var(--gauge-normal)   0%,     var(--gauge-normal)   30.77%,
-        var(--gauge-alert)    30.77%, var(--gauge-alert)    61.54%,
-        var(--gauge-critical) 61.54%, var(--gauge-critical) 86.15%,
-        var(--gauge-danger)   86.15%, var(--gauge-danger)   100%
+        var(--gauge-normal)   0%,     var(--gauge-normal)   28.57%,
+        var(--gauge-alert)    28.57%, var(--gauge-alert)    57.14%,
+        var(--gauge-critical) 57.14%, var(--gauge-critical) 91.43%,
+        var(--gauge-danger)   91.43%, var(--gauge-danger)   100%
     );
     border: 2px solid rgba(255, 255, 255, 0.35);
     border-radius: 4px;
