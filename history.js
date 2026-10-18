@@ -60,12 +60,16 @@ async function fetchSmsAlertEvents(rangeStart, rangeEnd) {
         .order("created_at", { ascending: false })
         .limit(HISTORY_ROW_LIMIT);
 
+    // Alert events can be inserted shortly after the SMS itself is sent.
+    // Expand the database query bounds, then filter by the SMS timestamp below.
     if (rangeStart) {
-        query = query.gte("created_at", rangeStart.toISOString());
+        const queryStart = new Date(rangeStart.getTime() - 120000);
+        query = query.gte("created_at", queryStart.toISOString());
     }
 
     if (rangeEnd) {
-        query = query.lt("created_at", rangeEnd.toISOString());
+        const queryEnd = new Date(rangeEnd.getTime() + 120000);
+        query = query.lt("created_at", queryEnd.toISOString());
     }
 
     return await query;
@@ -76,6 +80,7 @@ function normalizeSmsAlertEvent(event) {
     const message = String(event?.message ?? "");
     const waterMatch = message.match(/\bWater:\s*(-?\d+(?:\.\d+)?)\s*m\b/i);
     const statusMatch = message.match(/\bFLOOD(?:\s+UPDATE)?\s*:?\s*(ALERT|CRITICAL|DANGER)\b/i);
+    const smsTimeMatch = message.match(/\bTime:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\b/i);
 
     if (!waterMatch || !statusMatch || !event?.created_at) {
         return null;
@@ -86,9 +91,22 @@ function normalizeSmsAlertEvent(event) {
         return null;
     }
 
+    // SMS time is the ESP32's displayed local time (Philippines, UTC+08:00).
+    // Prefer it for History Logs; fall back to Supabase created_at for older
+    // messages or messages marked TIME-NOT-SYNCED.
+    let displayTimestamp = event.created_at;
+    if (smsTimeMatch) {
+        const smsTimestamp = `${smsTimeMatch[1]}T${smsTimeMatch[2]}+08:00`;
+        const parsedSmsTimestamp = new Date(smsTimestamp);
+        if (!Number.isNaN(parsedSmsTimestamp.getTime())) {
+            displayTimestamp = smsTimestamp;
+        }
+    }
+
     return {
         id: `sms-alert-${event.id ?? `${event.device_id || "device"}-${event.created_at}-${level}`}`,
-        created_at: event.created_at,
+        created_at: displayTimestamp,
+        event_created_at: event.created_at,
         water_level: level,
         status: statusMatch[1].toUpperCase(),
         device_id: event.device_id || "-",
@@ -115,7 +133,14 @@ async function fetchCombinedHistory(rangeStart, rangeEnd) {
     const readings = readingsResult.data || [];
     const smsRows = smsResult.error
         ? []
-        : (smsResult.data || []).map(normalizeSmsAlertEvent).filter(Boolean);
+        : (smsResult.data || [])
+            .map(normalizeSmsAlertEvent)
+            .filter(Boolean)
+            .filter(row => {
+                const timestamp = parseSupabaseTimestamp(row.created_at).getTime();
+                return (!rangeStart || timestamp >= rangeStart.getTime()) &&
+                       (!rangeEnd || timestamp < rangeEnd.getTime());
+            });
 
     const combined = [...readings, ...smsRows].sort(
         (a, b) => parseSupabaseTimestamp(b.created_at) - parseSupabaseTimestamp(a.created_at)
