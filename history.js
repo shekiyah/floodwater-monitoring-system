@@ -11,6 +11,7 @@ const HISTORY_ROW_LIMIT = 5000;
 let historyRows = [];
 let activeHistoryRange = null;
 let historyChannel = null;
+let smsEventQueryWarning = false;
 
 const historyBody = document.getElementById("historyBody");
 const historyMeta = document.getElementById("historyMeta");
@@ -48,6 +49,85 @@ async function fetchReadings(rangeStart, rangeEnd) {
     return await query;
 }
 
+// The ESP32 already records the exact SMS text in alert_events. Read those
+// events and extract the water level from the message rather than inserting a
+// second water_readings row that could trigger another database alert.
+async function fetchSmsAlertEvents(rangeStart, rangeEnd) {
+
+    let query = supabaseClient
+        .from("alert_events")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(HISTORY_ROW_LIMIT);
+
+    if (rangeStart) {
+        query = query.gte("created_at", rangeStart.toISOString());
+    }
+
+    if (rangeEnd) {
+        query = query.lt("created_at", rangeEnd.toISOString());
+    }
+
+    return await query;
+}
+
+function normalizeSmsAlertEvent(event) {
+
+    const message = String(event?.message ?? "");
+    const waterMatch = message.match(/\bWater:\s*(-?\d+(?:\.\d+)?)\s*m\b/i);
+    const statusMatch = message.match(/\bFLOOD(?:\s+UPDATE)?\s*:?\s*(ALERT|CRITICAL|DANGER)\b/i);
+
+    if (!waterMatch || !statusMatch || !event?.created_at) {
+        return null;
+    }
+
+    const level = Number(waterMatch[1]);
+    if (!Number.isFinite(level)) {
+        return null;
+    }
+
+    return {
+        id: `sms-alert-${event.id ?? `${event.device_id || "device"}-${event.created_at}-${level}`}`,
+        created_at: event.created_at,
+        water_level: level,
+        status: statusMatch[1].toUpperCase(),
+        device_id: event.device_id || "-",
+        source: "sms_alert",
+        message
+    };
+}
+
+async function fetchCombinedHistory(rangeStart, rangeEnd) {
+
+    const [readingsResult, smsResult] = await Promise.all([
+        fetchReadings(rangeStart, rangeEnd),
+        fetchSmsAlertEvents(rangeStart, rangeEnd)
+    ]);
+
+    if (readingsResult.error) {
+        return {
+            data: null,
+            error: readingsResult.error,
+            smsEventError: smsResult.error || null
+        };
+    }
+
+    const readings = readingsResult.data || [];
+    const smsRows = smsResult.error
+        ? []
+        : (smsResult.data || []).map(normalizeSmsAlertEvent).filter(Boolean);
+
+    const combined = [...readings, ...smsRows].sort(
+        (a, b) => parseSupabaseTimestamp(b.created_at) - parseSupabaseTimestamp(a.created_at)
+    );
+
+    return {
+        data: combined.slice(0, HISTORY_ROW_LIMIT),
+        error: null,
+        smsEventError: smsResult.error || null
+    };
+}
+
 // With no argument, loads the most recent readings (the default view
 // for every role). With a range from the admin/moderator custom-range
 // Search button, it's scoped to that range instead.
@@ -56,10 +136,19 @@ async function loadHistory(customRange) {
     activeHistoryRange = customRange || null;
     showHistoryMessage("Loading readings…");
 
-    const { data, error } = await fetchReadings(
+    const { data, error, smsEventError } = await fetchCombinedHistory(
         activeHistoryRange ? activeHistoryRange.start : null,
         activeHistoryRange ? activeHistoryRange.end : null
     );
+
+    smsEventQueryWarning = Boolean(smsEventError);
+
+    if (smsEventError) {
+        console.warn(
+            "SMS alert history could not be loaded from alert_events. Check SELECT permissions and Realtime publication for this table:",
+            smsEventError
+        );
+    }
 
     if (error) {
         console.error("History log query failed:", error);
@@ -136,6 +225,10 @@ function renderHistoryTable(data, customRange) {
                 ? "No readings in that date range."
                 : "No readings recorded yet."
         );
+        if (smsEventQueryWarning) {
+            historyMeta.textContent =
+                "SMS alert rows could not be loaded. Check the SELECT policy for public.alert_events in Supabase.";
+        }
         return;
     }
 
@@ -165,17 +258,23 @@ function renderHistoryTable(data, customRange) {
             <tr>
                 <td>${escapeHtml(parseSupabaseTimestamp(row.created_at).toLocaleString())}</td>
                 <td>${escapeHtml(waterLevelText)}</td>
-                <td><span class="pill pill--${statusClass}">${escapeHtml(status)}</span></td>
+                <td><span class="pill pill--${statusClass}">${escapeHtml(row.source === "sms_alert" ? `${status} · SMS` : status)}</span></td>
                 <td>${escapeHtml(row.device_id || "-")}</td>
             </tr>
         `;
     }).join("");
 
     const shown = data.length.toLocaleString();
+    const smsCount = data.filter(row => row.source === "sms_alert").length;
+    const sensorCount = data.length - smsCount;
 
     historyMeta.textContent = data.length >= HISTORY_ROW_LIMIT
-        ? `Showing the most recent ${shown} readings. Choose a date range to see older ones.`
-        : `${shown} reading${data.length === 1 ? "" : "s"}.`;
+        ? `Showing the most recent ${shown} records. Choose a date range to see older ones.`
+        : `${sensorCount} sensor reading${sensorCount === 1 ? "" : "s"} and ${smsCount} SMS alert record${smsCount === 1 ? "" : "s"}.`;
+
+    if (smsEventQueryWarning) {
+        historyMeta.textContent += " SMS alert records may be missing because alert_events could not be read; check Supabase SELECT permissions.";
+    }
 }
 
 // Admin-only. Permanently removes every water_readings row in the
@@ -255,7 +354,11 @@ async function deleteCustomRangeData() {
 // ---------------------------------------------------------------------
 async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
 
-    const { data, error } = await fetchReadings(rangeStart, rangeEnd);
+    const { data, error, smsEventError } = await fetchCombinedHistory(rangeStart, rangeEnd);
+
+    if (smsEventError) {
+        console.warn("Excel export could not include SMS alert events because alert_events was not readable:", smsEventError);
+    }
 
     if (error) {
         alert("Could not load data to export: " + error.message);
@@ -271,6 +374,7 @@ async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
         Date: parseSupabaseTimestamp(row.created_at).toLocaleString(),
         "Water Level (m)": row.water_level ?? "",
         Status: getHistoryStatus(row),
+        Source: row.source === "sms_alert" ? "SMS alert" : "Sensor reading",
         Device: row.device_id || "-"
     }));
 
@@ -329,6 +433,24 @@ function handleHistoryInsert(payload) {
     renderHistoryTable(historyRows, activeHistoryRange);
 }
 
+function handleSmsAlertInsert(payload) {
+
+    const row = normalizeSmsAlertEvent(payload && payload.new);
+    if (!row || !rowIsInsideActiveRange(row)) return;
+
+    const duplicate = historyRows.some(existing =>
+        existing.source === "sms_alert" && existing.id === row.id
+    );
+
+    if (duplicate) return;
+
+    historyRows = [row, ...historyRows]
+        .sort((a, b) => parseSupabaseTimestamp(b.created_at) - parseSupabaseTimestamp(a.created_at))
+        .slice(0, HISTORY_ROW_LIMIT);
+
+    renderHistoryTable(historyRows, activeHistoryRange);
+}
+
 function subscribeToHistoryUpdates() {
 
     historyChannel = supabaseClient
@@ -341,6 +463,15 @@ function subscribeToHistoryUpdates() {
                 table: "water_readings"
             },
             handleHistoryInsert
+        )
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "alert_events"
+            },
+            handleSmsAlertInsert
         )
         .subscribe(status => {
             if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
