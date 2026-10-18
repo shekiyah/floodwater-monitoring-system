@@ -84,3 +84,5 @@ body.dash-pro .settings-link span { color: var(--muted); }
     .map-canvas { height: 300px; }
 }
 @media (prefers-reduced-motion: reduce) { .st-marker { animation: none; } }
+.map-location-status { margin: 10px 2px 0; color: var(--muted); font-size: 0.82rem; line-height: 1.5; }
+.map-location-status.is-warning { color: #e6b25e; }

@@ -262,10 +262,11 @@
 
         <section class="card panel area-map" id="stationMap">
             <div class="panel-head">
-                <h3><span class="glyph" aria-hidden="true">📍</span> Station location</h3>
+                <h3><span class="glyph" aria-hidden="true">📍</span> Monitoring station location</h3>
                 <span class="panel-meta" id="mapCoords">—</span>
             </div>
-            <div id="map" class="map-canvas" role="region" aria-label="Map showing where the monitoring station is installed"></div>
+            <div id="map" class="map-canvas" role="region" aria-label="Map showing the latest cellular location estimate for the monitoring station"></div>
+            <p class="map-location-status" id="mapLocationStatus" role="status" aria-live="polite">Loading station location…</p>
         </section>
 
         </div>
@@ -303,7 +304,7 @@
 <script src="chart-theme.js"></script>
 <script src="nav.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="dashboard-extras.js?v=3"></script>
+<script src="dashboard-extras.js?v=4"></script>
 <script src="script.js"></script>
 <script src="chart-download.js?v=2"></script>
 
