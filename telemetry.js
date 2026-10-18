@@ -3,6 +3,14 @@
 // Viewers are sent back to the dashboard; RLS on system_status is the
 // real boundary.
 
+function showTelemetryMessage(message, isError = false) {
+    const el = document.getElementById("telemetryMessage");
+    if (!el) return;
+    el.textContent = message || "";
+    el.hidden = !message;
+    el.classList.toggle("is-stale", Boolean(message) && isError);
+}
+
 async function loadSystemStatus() {
 
     const { data, error } = await supabaseClient
@@ -13,14 +21,26 @@ async function loadSystemStatus() {
 
     if (error) {
         console.error("Telemetry error:", error);
+        const updated = document.getElementById("speedUpdated");
+        if (updated) updated.textContent = "Telemetry read failed";
+        showTelemetryMessage(
+            `Cannot read system_status: ${error.message}. Check the SQL read policy and signed-in moderator/admin role.`,
+            true
+        );
         return;
     }
 
     if (!data || data.length === 0) {
-        document.getElementById("speedUpdated").textContent = "No data yet";
+        const updated = document.getElementById("speedUpdated");
+        if (updated) updated.textContent = "No telemetry rows yet";
+        showTelemetryMessage(
+            "Waiting for the ESP32 to upload telemetry. Confirm the SQL fix ran and the firmware reports a successful update_system_status RPC.",
+            false
+        );
         return;
     }
 
+    showTelemetryMessage("");
     updateSpeedCard(data);
 }
 
@@ -39,6 +59,7 @@ async function loadTelemetryHistory() {
 
     if (error) {
         console.error("Telemetry history error:", error);
+        showTelemetryMessage(`Telemetry history failed to load: ${error.message}`, true);
         return;
     }
 
@@ -301,7 +322,18 @@ async function init() {
                 loadTelemetryHistory();
             }
         )
-        .subscribe();
+        .subscribe((status) => {
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+                console.warn("Telemetry Realtime status:", status, "; periodic refresh remains enabled.");
+            }
+        });
+
+    // Fallback refresh: keeps telemetry updating even if Realtime is unavailable.
+    // The Realtime listener still provides faster updates when it is connected.
+    window.setInterval(() => {
+        loadSystemStatus();
+        loadTelemetryHistory();
+    }, 60000);
 }
 
 init();
