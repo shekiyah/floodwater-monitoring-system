@@ -119,6 +119,134 @@ async function getWaterReading(){
 
 getWaterReading();
 
+
+// LAST SMS ALERT — this is deliberately separate from the current sensor value.
+// The ESP32 creates one SMS payload, then stores that same text in alert_events.
+// We parse that saved payload so the dashboard shows the exact alert reading/time,
+// even when newer water_readings rows arrive a few seconds later.
+const LAST_ALERT_QUERY_LIMIT = 50;
+let latestSmsAlertKey = null;
+let latestSmsAlertTimeMs = -Infinity;
+let latestSmsAlertInsertedMs = -Infinity;
+
+function normalizeDashboardSmsAlert(event) {
+
+    const message = String(event?.message ?? "");
+    const waterMatch = message.match(/\bWater:\s*(-?\d+(?:\.\d+)?)\s*m\b/i);
+    const statusMatch = message.match(/\bFLOOD(?:\s+UPDATE)?\s*:?\s*(ALERT|CRITICAL|DANGER)\b/i);
+    const timeMatch = message.match(/\bTime:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\b/i);
+
+    if (!waterMatch || !statusMatch || !event?.created_at) return null;
+
+    const level = Number(waterMatch[1]);
+    if (!Number.isFinite(level)) return null;
+
+    // SMS timestamps are generated in Philippines local time (UTC+08:00).
+    // If the device clock was not synchronized, fall back to Supabase created_at.
+    let alertTimestamp = event.created_at;
+    if (timeMatch) {
+        const candidate = `${timeMatch[1]}T${timeMatch[2]}+08:00`;
+        if (!Number.isNaN(new Date(candidate).getTime())) alertTimestamp = candidate;
+    }
+
+    return {
+        key: String(event.id ?? `${event.device_id || "device"}|${event.created_at}|${message}`),
+        level,
+        status: statusMatch[1].toUpperCase(),
+        timestamp: alertTimestamp,
+        timestampMs: parseSupabaseTimestamp(alertTimestamp).getTime(),
+        insertedMs: parseSupabaseTimestamp(event.created_at).getTime(),
+        deviceId: event.device_id || "-"
+    };
+}
+
+function renderLatestSmsAlert(alert) {
+
+    const levelElement = document.getElementById("lastSmsAlertLevel");
+    const statusElement = document.getElementById("lastSmsAlertStatus");
+    const timeElement = document.getElementById("lastSmsAlertTime");
+    if (!levelElement || !statusElement || !timeElement) return;
+
+    if (!alert) {
+        levelElement.textContent = "No SMS alert yet";
+        statusElement.textContent = "No alert recorded";
+        statusElement.className = "status-badge unknown";
+        timeElement.textContent = "—";
+        return;
+    }
+
+    levelElement.textContent = `${alert.level.toFixed(2)} m`;
+    statusElement.textContent = alert.status;
+    statusElement.className = `status-badge ${alert.status.toLowerCase()}`;
+    timeElement.textContent = Number.isFinite(alert.timestampMs)
+        ? parseSupabaseTimestamp(alert.timestamp).toLocaleString()
+        : "Time unavailable";
+}
+
+function acceptLatestSmsAlert(alert) {
+
+    if (!alert) return;
+
+    const isNewer = alert.timestampMs > latestSmsAlertTimeMs ||
+        (alert.timestampMs === latestSmsAlertTimeMs && alert.insertedMs > latestSmsAlertInsertedMs);
+
+    if (!isNewer && alert.key !== latestSmsAlertKey) return;
+    if (alert.key === latestSmsAlertKey) return;
+
+    latestSmsAlertKey = alert.key;
+    latestSmsAlertTimeMs = alert.timestampMs;
+    latestSmsAlertInsertedMs = alert.insertedMs;
+    renderLatestSmsAlert(alert);
+}
+
+async function loadLatestSmsAlert() {
+
+    const { data, error } = await supabaseClient
+        .from("alert_events")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(LAST_ALERT_QUERY_LIMIT);
+
+    if (error) {
+        console.warn("Could not load the last SMS alert from alert_events:", error);
+        // Keep a valid alert already received over Realtime visible if a later
+        // refresh fails; only show the access warning when no alert is known.
+        if (latestSmsAlertKey === null) {
+            const levelElement = document.getElementById("lastSmsAlertLevel");
+            const statusElement = document.getElementById("lastSmsAlertStatus");
+            const timeElement = document.getElementById("lastSmsAlertTime");
+            if (levelElement) levelElement.textContent = "Unavailable";
+            if (statusElement) {
+                statusElement.textContent = "Check Supabase access";
+                statusElement.className = "status-badge unknown";
+            }
+            if (timeElement) timeElement.textContent = "Could not read alert_events";
+        }
+        return;
+    }
+
+    const alerts = (data || [])
+        .map(normalizeDashboardSmsAlert)
+        .filter(Boolean)
+        .sort((a, b) => b.timestampMs - a.timestampMs || b.insertedMs - a.insertedMs);
+
+    if (!alerts.length) {
+        if (latestSmsAlertKey === null) renderLatestSmsAlert(null);
+        return;
+    }
+
+    // Accept the newest alert by the timestamp embedded in the message, not
+    // by the later database insert time alone. Never replace a newer Realtime
+    // alert with a stale result from an overlapping initial query.
+    acceptLatestSmsAlert(alerts[0]);
+}
+
+function handleDashboardSmsAlertInsert(payload) {
+    acceptLatestSmsAlert(normalizeDashboardSmsAlert(payload && payload.new));
+}
+
+loadLatestSmsAlert();
+
 // The chart displays the full dataset for whichever period is
 // currently loaded, or — while the zoom slider below it is being
 // used — a windowed view around one specific reading. It defaults
@@ -737,4 +865,18 @@ scheduleStatisticsRefresh();
 
 )
 
-.subscribe();
+.on(
+    "postgres_changes",
+    {
+        event: "INSERT",
+        schema: "public",
+        table: "alert_events"
+    },
+    handleDashboardSmsAlertInsert
+)
+.subscribe((status) => {
+    if (status === "SUBSCRIBED") loadLatestSmsAlert();
+    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+        console.warn("Dashboard Realtime subscription status:", status);
+    }
+});
