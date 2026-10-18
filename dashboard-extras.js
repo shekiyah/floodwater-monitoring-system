@@ -160,7 +160,7 @@
     }
 
     async function loadCellLocation() {
-        if (!window.supabaseClient) {
+        if (typeof supabaseClient === "undefined" || !supabaseClient) {
             showConfiguredFallback("Supabase is unavailable. Showing configured station coordinates.");
             return;
         }
@@ -243,7 +243,7 @@
     }
 
     async function loadHealth() {
-        if (!window.supabaseClient || !document.getElementById("hInternet")) return;
+        if (typeof supabaseClient === "undefined" || !supabaseClient || !document.getElementById("hInternet")) return;
 
         const { data, error } = await supabaseClient
             .from("system_status").select("*").order("updated_at", { ascending: false }).limit(1);
@@ -281,7 +281,7 @@
         loadCellLocation();
         // Realtime moves the map as soon as the ESP32 writes a new location.
         // A 60-second read is also kept as a fallback if a Realtime event is missed.
-        if (window.supabaseClient) {
+        if (typeof supabaseClient !== "undefined" && supabaseClient) {
             supabaseClient.channel("dashboard-system-status")
                 .on("postgres_changes", { event: "INSERT", schema: "public", table: "system_status" }, loadHealth)
                 .subscribe();
