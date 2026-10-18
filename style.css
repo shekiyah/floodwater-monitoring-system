@@ -1133,6 +1133,7 @@ canvas { max-width: 100%; }
 .pill--alert             { color: var(--status-alert);    background: var(--status-alert-bg); }
 .pill--critical          { color: var(--status-critical); background: var(--status-critical-bg); }
 .pill--danger            { color: var(--status-danger);   background: var(--status-danger-bg); }
+.pill--sensor-fault, .pill--unknown { color: var(--status-danger); background: var(--status-danger-bg); }
 .pill--off               { color: var(--status-unknown);  background: var(--status-unknown-bg); }
 
 .history-range {

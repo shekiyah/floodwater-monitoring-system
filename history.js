@@ -6,6 +6,12 @@
 // whole history.
 const HISTORY_ROW_LIMIT = 5000;
 
+// Keep the currently displayed rows in memory so Realtime INSERT events can
+// update the table without re-fetching thousands of rows after every snapshot.
+let historyRows = [];
+let activeHistoryRange = null;
+let historyChannel = null;
+
 const historyBody = document.getElementById("historyBody");
 const historyMeta = document.getElementById("historyMeta");
 
@@ -47,20 +53,23 @@ async function fetchReadings(rangeStart, rangeEnd) {
 // Search button, it's scoped to that range instead.
 async function loadHistory(customRange) {
 
+    activeHistoryRange = customRange || null;
     showHistoryMessage("Loading readings…");
 
     const { data, error } = await fetchReadings(
-        customRange ? customRange.start : null,
-        customRange ? customRange.end : null
+        activeHistoryRange ? activeHistoryRange.start : null,
+        activeHistoryRange ? activeHistoryRange.end : null
     );
 
     if (error) {
-        console.error(error);
-        showHistoryMessage("Could not load readings. Refresh the page to try again.");
+        console.error("History log query failed:", error);
+        historyRows = [];
+        showHistoryMessage(`Could not load readings: ${error.message}`);
         return;
     }
 
-    renderHistoryTable(data, customRange);
+    historyRows = data || [];
+    renderHistoryTable(historyRows, activeHistoryRange);
 }
 
 // ---------------------------------------------------------------------
@@ -108,6 +117,17 @@ function searchCustomRange() {
     }
 }
 
+function getHistoryStatus(row) {
+
+    if (row.status) return String(row.status).toUpperCase();
+
+    if (row.water_level === null || row.water_level === undefined || row.water_level === "") {
+        return "SENSOR_FAULT";
+    }
+
+    return getFloodStatus(Number(row.water_level));
+}
+
 function renderHistoryTable(data, customRange) {
 
     if (!data || data.length === 0) {
@@ -123,13 +143,29 @@ function renderHistoryTable(data, customRange) {
     // re-parses the table on every row and crawls at a few thousand.
     historyBody.innerHTML = data.map(row => {
 
-        const status = getFloodStatus(row.water_level);
+        // Prefer the status saved by the ESP32. This preserves the exact
+        // device decision at boundary values and correctly labels SENSOR_FAULT.
+        const status = getHistoryStatus(row);
+
+        const statusClass = ({
+            NORMAL: "normal",
+            ALERT: "alert",
+            CRITICAL: "critical",
+            DANGER: "danger",
+            SENSOR_FAULT: "sensor-fault",
+            UNKNOWN: "unknown"
+        })[status] || "unknown";
+
+        const hasWaterLevel = row.water_level !== null &&
+            row.water_level !== undefined && row.water_level !== "" &&
+            Number.isFinite(Number(row.water_level));
+        const waterLevelText = hasWaterLevel ? `${Number(row.water_level).toFixed(2)} m` : "—";
 
         return `
             <tr>
                 <td>${escapeHtml(parseSupabaseTimestamp(row.created_at).toLocaleString())}</td>
-                <td>${escapeHtml(row.water_level)} m</td>
-                <td><span class="pill pill--${status.toLowerCase()}">${status}</span></td>
+                <td>${escapeHtml(waterLevelText)}</td>
+                <td><span class="pill pill--${statusClass}">${escapeHtml(status)}</span></td>
                 <td>${escapeHtml(row.device_id || "-")}</td>
             </tr>
         `;
@@ -233,8 +269,8 @@ async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
 
     const rows = data.slice().reverse().map(row => ({
         Date: parseSupabaseTimestamp(row.created_at).toLocaleString(),
-        "Water Level (m)": row.water_level,
-        Status: getFloodStatus(row.water_level),
+        "Water Level (m)": row.water_level ?? "",
+        Status: getHistoryStatus(row),
         Device: row.device_id || "-"
     }));
 
@@ -260,4 +296,58 @@ async function downloadCustomRange() {
     );
 }
 
+// Keep History Logs live while the page is open. The dashboard already
+// subscribes to this same table; this gives the history table the same behavior.
+function rowIsInsideActiveRange(row) {
+
+    if (!activeHistoryRange) return true;
+    if (!row.created_at) return false;
+
+    const timestamp = parseSupabaseTimestamp(row.created_at).getTime();
+    return timestamp >= activeHistoryRange.start.getTime() &&
+           timestamp < activeHistoryRange.end.getTime();
+}
+
+function handleHistoryInsert(payload) {
+
+    const row = payload && payload.new;
+    if (!row || !row.created_at || !rowIsInsideActiveRange(row)) return;
+
+    const duplicate = historyRows.some(existing =>
+        (row.id !== undefined && row.id !== null && existing.id === row.id) ||
+        (existing.created_at === row.created_at &&
+         existing.water_level === row.water_level &&
+         existing.device_id === row.device_id)
+    );
+
+    if (duplicate) return;
+
+    historyRows = [row, ...historyRows]
+        .sort((a, b) => parseSupabaseTimestamp(b.created_at) - parseSupabaseTimestamp(a.created_at))
+        .slice(0, HISTORY_ROW_LIMIT);
+
+    renderHistoryTable(historyRows, activeHistoryRange);
+}
+
+function subscribeToHistoryUpdates() {
+
+    historyChannel = supabaseClient
+        .channel("history-water-reading-updates")
+        .on(
+            "postgres_changes",
+            {
+                event: "INSERT",
+                schema: "public",
+                table: "water_readings"
+            },
+            handleHistoryInsert
+        )
+        .subscribe(status => {
+            if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+                console.warn("History Realtime subscription status:", status);
+            }
+        });
+}
+
+subscribeToHistoryUpdates();
 loadHistory();
