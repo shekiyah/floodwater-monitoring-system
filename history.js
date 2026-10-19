@@ -5,6 +5,7 @@
 // result hits it, so a truncated list is never mistaken for the
 // whole history.
 const HISTORY_ROW_LIMIT = 5000;
+const HISTORY_AUTO_REFRESH_MS = 15000;
 
 // History timestamps are always displayed in Philippine Standard Time (UTC+08:00),
 // independent of the computer/browser's configured timezone.
@@ -41,7 +42,7 @@ function formatHistoryTimestamp(value) {
 
 // Excel stores date/time values as serial numbers without timezone metadata.
 // Build the serial from the Manila wall-clock parts so Excel displays the same
-// PHT timestamp as the History Logs page, then also export UTC ISO for auditing.
+// PHT timestamp as the History Logs page. The workbook uses one timestamp column.
 function historyTimestampToExcelSerial(value) {
     const parts = getHistoryDateParts(value);
     if (!parts) return null;
@@ -58,11 +59,6 @@ function historyTimestampToExcelSerial(value) {
     return (manilaWallClockMs - EXCEL_EPOCH_MS) / 86400000;
 }
 
-function formatHistoryUtcTimestamp(value) {
-    const date = parseSupabaseTimestamp(value);
-    return Number.isNaN(date.getTime()) ? "" : date.toISOString();
-}
-
 function makeHistoryExportStamp(value) {
     const parts = getHistoryDateParts(value);
     return parts
@@ -76,6 +72,7 @@ let historyRows = [];
 let activeHistoryRange = null;
 let historyChannel = null;
 let smsEventQueryWarning = false;
+let historyRefreshInProgress = false;
 
 const historyBody = document.getElementById("historyBody");
 const historyMeta = document.getElementById("historyMeta");
@@ -250,6 +247,45 @@ async function loadHistory(customRange) {
     renderHistoryTable(historyRows, activeHistoryRange);
 }
 
+// Polling is a fallback for deployments where Supabase Realtime is not enabled
+// or its INSERT subscription is interrupted. It refreshes quietly so the table
+// does not flash a loading message every 15 seconds.
+async function refreshHistorySilently() {
+
+    if (historyRefreshInProgress || document.visibilityState === "hidden") return;
+
+    historyRefreshInProgress = true;
+    const requestedRange = activeHistoryRange;
+
+    try {
+        const { data, error, smsEventError } = await fetchCombinedHistory(
+            requestedRange ? requestedRange.start : null,
+            requestedRange ? requestedRange.end : null
+        );
+
+        // If the user searched a different range while this request was running,
+        // discard this response. The next refresh will load the active range.
+        if (activeHistoryRange !== requestedRange) return;
+
+        if (error) {
+            console.warn("Automatic history refresh failed:", error);
+            return;
+        }
+
+        smsEventQueryWarning = Boolean(smsEventError);
+        if (smsEventError) {
+            console.warn("Automatic refresh could not read SMS alert events:", smsEventError);
+        }
+
+        historyRows = data || [];
+        renderHistoryTable(historyRows, requestedRange);
+    } catch (error) {
+        console.warn("Automatic history refresh failed:", error);
+    } finally {
+        historyRefreshInProgress = false;
+    }
+}
+
 // ---------------------------------------------------------------------
 // SHARED CUSTOM RANGE (admin/moderator only — #historyCustomRange).
 // One pair of date inputs feeds Search, Download and Delete. The dates
@@ -314,9 +350,10 @@ function renderHistoryTable(data, customRange) {
                 ? "No readings in that date range."
                 : "No readings recorded yet."
         );
+        historyMeta.textContent = "Updates automatically every 15 seconds while this page is open.";
         if (smsEventQueryWarning) {
-            historyMeta.textContent =
-                "SMS alert rows could not be loaded. Check the SELECT policy for public.alert_events in Supabase.";
+            historyMeta.textContent +=
+                " SMS alert rows could not be loaded. Check the SELECT policy for public.alert_events in Supabase.";
         }
         return;
     }
@@ -364,6 +401,7 @@ function renderHistoryTable(data, customRange) {
     if (smsEventQueryWarning) {
         historyMeta.textContent += " SMS alert records may be missing because alert_events could not be read; check Supabase SELECT permissions.";
     }
+    historyMeta.textContent += " Updates automatically every 15 seconds while this page is open.";
 }
 
 // Admin-only. Permanently removes every water_readings row in the
@@ -462,7 +500,6 @@ async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
     const exportedAt = new Date();
     const rows = data.slice().reverse().map(row => ({
         "Timestamp (PHT)": historyTimestampToExcelSerial(row.created_at) ?? "",
-        "Timestamp (UTC, ISO 8601)": formatHistoryUtcTimestamp(row.created_at),
         "Water Level (m)": row.water_level ?? "",
         Status: getHistoryStatus(row),
         Source: row.source === "sms_alert" ? "SMS alert" : "Sensor reading",
@@ -472,7 +509,6 @@ async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
     const worksheet = XLSX.utils.json_to_sheet(rows);
     worksheet["!cols"] = [
         { wch: 23 },
-        { wch: 30 },
         { wch: 17 },
         { wch: 16 },
         { wch: 16 },
@@ -500,7 +536,6 @@ async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
     const infoRows = [
         { Field: "Report", Value: "Flood Monitoring System - History Logs" },
         { Field: "Exported At (PHT)", Value: formatHistoryTimestamp(exportedAt) },
-        { Field: "Exported At (UTC)", Value: exportedAt.toISOString() },
         { Field: "Timezone", Value: "Asia/Manila (UTC+08:00)" },
         { Field: "Records Exported", Value: data.length },
         { Field: "Requested Range (PHT)", Value: rangeText }
