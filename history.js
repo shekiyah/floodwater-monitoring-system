@@ -6,6 +6,70 @@
 // whole history.
 const HISTORY_ROW_LIMIT = 5000;
 
+// History timestamps are always displayed in Philippine Standard Time (UTC+08:00),
+// independent of the computer/browser's configured timezone.
+const HISTORY_TIME_ZONE = "Asia/Manila";
+const EXCEL_EPOCH_MS = Date.UTC(1899, 11, 30);
+
+function getHistoryDateParts(value) {
+    const date = parseSupabaseTimestamp(value);
+    if (Number.isNaN(date.getTime())) return null;
+
+    const parts = new Intl.DateTimeFormat("en-GB", {
+        timeZone: HISTORY_TIME_ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hourCycle: "h23"
+    }).formatToParts(date);
+
+    const result = {};
+    for (const part of parts) {
+        if (part.type !== "literal") result[part.type] = part.value;
+    }
+    return result;
+}
+
+function formatHistoryTimestamp(value) {
+    const parts = getHistoryDateParts(value);
+    if (!parts) return "Time unavailable";
+    return `${parts.year}-${parts.month}-${parts.day} ${parts.hour}:${parts.minute}:${parts.second}`;
+}
+
+// Excel stores date/time values as serial numbers without timezone metadata.
+// Build the serial from the Manila wall-clock parts so Excel displays the same
+// PHT timestamp as the History Logs page, then also export UTC ISO for auditing.
+function historyTimestampToExcelSerial(value) {
+    const parts = getHistoryDateParts(value);
+    if (!parts) return null;
+
+    const manilaWallClockMs = Date.UTC(
+        Number(parts.year),
+        Number(parts.month) - 1,
+        Number(parts.day),
+        Number(parts.hour),
+        Number(parts.minute),
+        Number(parts.second)
+    );
+
+    return (manilaWallClockMs - EXCEL_EPOCH_MS) / 86400000;
+}
+
+function formatHistoryUtcTimestamp(value) {
+    const date = parseSupabaseTimestamp(value);
+    return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+function makeHistoryExportStamp(value) {
+    const parts = getHistoryDateParts(value);
+    return parts
+        ? `${parts.year}${parts.month}${parts.day}_${parts.hour}${parts.minute}${parts.second}`
+        : "unknown-time";
+}
+
 // Keep the currently displayed rows in memory so Realtime INSERT events can
 // update the table without re-fetching thousands of rows after every snapshot.
 let historyRows = [];
@@ -189,7 +253,7 @@ async function loadHistory(customRange) {
 // ---------------------------------------------------------------------
 // SHARED CUSTOM RANGE (admin/moderator only — #historyCustomRange).
 // One pair of date inputs feeds Search, Download and Delete. The dates
-// are local calendar dates (a date input has no time zone) and the
+// are Philippine calendar dates (a date input has no time zone) and the
 // range is end-exclusive so the chosen end date is fully included.
 // Delete is admin-only: its button carries data-min-role="admin".
 // ---------------------------------------------------------------------
@@ -203,11 +267,11 @@ function getCustomDateRange() {
         return null;
     }
 
-    const [startYear, startMonth, startDay] = startInput.value.split("-").map(Number);
-    const [endYear, endMonth, endDay] = endInput.value.split("-").map(Number);
-
-    const start = new Date(startYear, startMonth - 1, startDay);
-    const end = new Date(endYear, endMonth - 1, endDay + 1);
+    // Date inputs represent Philippine calendar dates for this monitoring system.
+    // Explicit +08:00 avoids depending on the computer's local timezone.
+    const start = new Date(`${startInput.value}T00:00:00+08:00`);
+    const end = new Date(`${endInput.value}T00:00:00+08:00`);
+    end.setTime(end.getTime() + 24 * 60 * 60 * 1000);
 
     if (start >= end) {
         alert("The start date must be on or before the end date.");
@@ -281,7 +345,7 @@ function renderHistoryTable(data, customRange) {
 
         return `
             <tr>
-                <td>${escapeHtml(parseSupabaseTimestamp(row.created_at).toLocaleString())}</td>
+                <td>${escapeHtml(formatHistoryTimestamp(row.created_at))}</td>
                 <td>${escapeHtml(waterLevelText)}</td>
                 <td><span class="pill pill--${statusClass}">${escapeHtml(row.source === "sms_alert" ? `${status} · SMS` : status)}</span></td>
                 <td>${escapeHtml(row.device_id || "-")}</td>
@@ -395,8 +459,10 @@ async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
         return;
     }
 
+    const exportedAt = new Date();
     const rows = data.slice().reverse().map(row => ({
-        Date: parseSupabaseTimestamp(row.created_at).toLocaleString(),
+        "Timestamp (PHT)": historyTimestampToExcelSerial(row.created_at) ?? "",
+        "Timestamp (UTC, ISO 8601)": formatHistoryUtcTimestamp(row.created_at),
         "Water Level (m)": row.water_level ?? "",
         Status: getHistoryStatus(row),
         Source: row.source === "sms_alert" ? "SMS alert" : "Sensor reading",
@@ -404,10 +470,56 @@ async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
+    worksheet["!cols"] = [
+        { wch: 23 },
+        { wch: 30 },
+        { wch: 17 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 20 }
+    ];
+
+    // The first column is a real Excel date/time serial, not formatted text.
+    // The number format keeps seconds visible when the workbook is opened.
+    if (worksheet["!ref"]) {
+        const usedRange = XLSX.utils.decode_range(worksheet["!ref"]);
+        for (let rowIndex = 1; rowIndex <= usedRange.e.r; rowIndex++) {
+            const cellRef = XLSX.utils.encode_cell({ r: rowIndex, c: 0 });
+            const cell = worksheet[cellRef];
+            if (cell && typeof cell.v === "number") {
+                cell.t = "n";
+                cell.z = "yyyy-mm-dd hh:mm:ss";
+            }
+        }
+    }
+
+    const rangeText = rangeStart && rangeEnd
+        ? `${formatHistoryTimestamp(rangeStart)} to ${formatHistoryTimestamp(new Date(rangeEnd.getTime() - 1000))}`
+        : "All available records";
+
+    const infoRows = [
+        { Field: "Report", Value: "Flood Monitoring System - History Logs" },
+        { Field: "Exported At (PHT)", Value: formatHistoryTimestamp(exportedAt) },
+        { Field: "Exported At (UTC)", Value: exportedAt.toISOString() },
+        { Field: "Timezone", Value: "Asia/Manila (UTC+08:00)" },
+        { Field: "Records Exported", Value: data.length },
+        { Field: "Requested Range (PHT)", Value: rangeText }
+    ];
+    const infoSheet = XLSX.utils.json_to_sheet(infoRows);
+    infoSheet["!cols"] = [{ wch: 28 }, { wch: 55 }];
+
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Flood History");
+    XLSX.utils.book_append_sheet(workbook, infoSheet, "Export Info");
 
-    XLSX.writeFile(workbook, filename);
+    // Include the export time in the filename so repeat downloads do not share
+    // the same name and the download time is visible without opening the file.
+    const timestampedFilename = filename.replace(
+        /\.xlsx$/i,
+        `_exported_${makeHistoryExportStamp(exportedAt)}.xlsx`
+    );
+
+    XLSX.writeFile(workbook, timestampedFilename);
 }
 
 async function downloadCustomRange() {
