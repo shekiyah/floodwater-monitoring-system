@@ -654,3 +654,16 @@ function subscribeToHistoryUpdates() {
 
 subscribeToHistoryUpdates();
 loadHistory();
+
+// Poll every 15 seconds as a fallback if Supabase Realtime misses an event.
+// refreshHistorySilently keeps the table stable and respects the active date range.
+const historyRefreshTimer = window.setInterval(() => {
+    refreshHistorySilently();
+}, HISTORY_AUTO_REFRESH_MS);
+
+// Refresh as soon as the user returns to this tab after it was in the background.
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        refreshHistorySilently();
+    }
+});
