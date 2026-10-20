@@ -384,7 +384,12 @@ function renderHistoryTable(data, customRange) {
             <tr>
                 <td>${escapeHtml(formatHistoryTimestamp(row.created_at))}</td>
                 <td>${escapeHtml(waterLevelText)}</td>
-                <td><span class="pill pill--${statusClass}">${escapeHtml(row.source === "sms_alert" ? `${status} · SMS` : status)}</span></td>
+                <td>
+                    <span class="pill pill--${statusClass}">${escapeHtml(row.source === "sms_alert" ? `${status} · SMS` : status)}</span>
+                    ${String(row.record_source || "").toUpperCase() === "SD" && row.source !== "sms_alert"
+                        ? '<span class="pill pill--sd">SD</span>'
+                        : ""}
+                </td>
                 <td>${escapeHtml(row.device_id || "-")}</td>
             </tr>
         `;
@@ -502,7 +507,9 @@ async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
         "Timestamp (PHT)": historyTimestampToExcelSerial(row.created_at) ?? "",
         "Water Level (m)": row.water_level ?? "",
         Status: getHistoryStatus(row),
-        Source: row.source === "sms_alert" ? "SMS alert" : "Sensor reading",
+        Source: row.source === "sms_alert"
+            ? "SMS alert"
+            : (String(row.record_source || "").toUpperCase() === "SD" ? "SD card" : "Sensor reading"),
         Device: row.device_id || "-"
     }));
 

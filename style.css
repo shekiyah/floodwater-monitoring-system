@@ -1135,6 +1135,7 @@ canvas { max-width: 100%; }
 .pill--danger            { color: var(--status-danger);   background: var(--status-danger-bg); }
 .pill--sensor-fault, .pill--unknown { color: var(--status-danger); background: var(--status-danger-bg); }
 .pill--off               { color: var(--status-unknown);  background: var(--status-unknown-bg); }
+.pill--sd                { color: #174ea6; background: #dceafe; margin-left: 6px; }
 
 .history-range {
     display: flex;
