@@ -4,7 +4,9 @@
  *      -> interval = the dashboard's Custom start/end dates
  *         (#chartCustomStart / #chartCustomEnd). If they are empty, last 24 hours.
  *   2) Upload Speed & Ping chart  (canvas #telemetrySpeedChart, table system_status)
- *      -> interval = last 48 hours (same as the chart on screen).
+ *      -> interval = the Telemetry page's Custom start/end dates
+ *         (#telemetryCustomStart / #telemetryCustomEnd). If both are empty,
+ *         last 48 hours.
  * Clicking the button fetches that interval from Supabase, draws a white
  * off-screen chart and downloads the PNG immediately. No popup.
  *
@@ -34,6 +36,40 @@
     return { from: new Date(now - 24 * 3600e3), to: now };
   }
 
+  // Reads the Telemetry page's custom dates. Uses the same Philippine
+  // calendar-day boundaries as telemetry.js. The end date is included by
+  // querying up to (but not including) midnight of the following day.
+  // If no dates have been selected, retain the default last-48-hours view.
+  function telemetryInterval() {
+    const s = document.getElementById('telemetryCustomStart');
+    const e = document.getElementById('telemetryCustomEnd');
+    const hasStart = Boolean(s && s.value);
+    const hasEnd = Boolean(e && e.value);
+
+    if (hasStart || hasEnd) {
+      if (!hasStart || !hasEnd) {
+        throw new Error('Choose both a start and an end date before downloading.');
+      }
+
+      const from = new Date(`${s.value}T00:00:00+08:00`);
+      const endDateStart = new Date(`${e.value}T00:00:00+08:00`);
+
+      if (
+        Number.isNaN(from.getTime()) ||
+        Number.isNaN(endDateStart.getTime()) ||
+        from > endDateStart
+      ) {
+        throw new Error('The start date must be on or before the end date.');
+      }
+
+      const to = new Date(endDateStart.getTime() + 24 * 60 * 60 * 1000);
+      return { from, to };
+    }
+
+    const to = new Date();
+    return { from: new Date(to.getTime() - 48 * 3600e3), to };
+  }
+
   const CHARTS = [
     {
       canvasId: 'waterChart',
@@ -59,7 +95,7 @@
         { col: 'ping_ms', label: 'Ping (ms)', color: '#0b9fc4', axis: 'y1' }
       ],
       axes: { y: { text: 'Mbps', position: 'left' }, y1: { text: 'ms', position: 'right' } },
-      interval: () => { const to = new Date(); return { from: new Date(to - 48 * 3600e3), to }; },
+      interval: telemetryInterval,
       theme: 'cd-purple'
     }
   ];
@@ -94,7 +130,7 @@
       const { data, error } = await supabaseClient
         .from(cfg.table).select(cols)
         .gte(cfg.timeCol, from.toISOString())
-        .lte(cfg.timeCol, to.toISOString())
+        .lt(cfg.timeCol, to.toISOString())
         .order(cfg.timeCol, { ascending: true })
         .range(start, start + PAGE - 1);
       if (error) throw new Error(error.message);
