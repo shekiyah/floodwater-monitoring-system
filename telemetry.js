@@ -188,7 +188,7 @@ async function loadTelemetryHistory(range = activeTelemetryRange) {
 
     renderSpeedChart(
         labels,
-        data.map(row => hasValue(row.upload_kbps) ? Number(row.upload_kbps) / 1000 : null),
+        data.map(row => hasValue(row.upload_kbps) ? Number(row.upload_kbps) : null),
         data.map(row => hasValue(row.ping_ms) ? Number(row.ping_ms) : null)
     );
 
@@ -213,7 +213,7 @@ const timeAxis = {
 // Reads upload_kbps, ping_ms and data_used_kb from system_status.
 // Missing columns or null values simply show "—".
 // ---------------------------------------------------------------
-const SPEED_STOPS = [0, 0.1, 0.5, 1, 2, 5, 10];   // Mbps, A7670C is Cat-1
+const SPEED_STOPS = [0, 100, 500, 1000, 2000, 5000, 10000];   // Kbps, A7670C is Cat-1
 const GAUGE = { cx: 150, cy: 150, r: 112, start: 135, sweep: 270 };
 const STALE_AFTER_MIN = 10;
 
@@ -234,16 +234,16 @@ function gaugeArc(radius, fromDeg, toDeg) {
 }
 
 // Piecewise scale: equal arc length per stop, like the Speedtest dial.
-function speedFraction(mbps) {
+function speedFraction(kbps) {
 
     const last = SPEED_STOPS.length - 1;
 
-    if (!(mbps > 0)) return 0;
-    if (mbps >= SPEED_STOPS[last]) return 1;
+    if (!(kbps > 0)) return 0;
+    if (kbps >= SPEED_STOPS[last]) return 1;
 
     for (let i = 0; i < last; i++) {
-        if (mbps <= SPEED_STOPS[i + 1]) {
-            const part = (mbps - SPEED_STOPS[i]) / (SPEED_STOPS[i + 1] - SPEED_STOPS[i]);
+        if (kbps <= SPEED_STOPS[i + 1]) {
+            const part = (kbps - SPEED_STOPS[i]) / (SPEED_STOPS[i + 1] - SPEED_STOPS[i]);
             return (i + part) / last;
         }
     }
@@ -274,7 +274,7 @@ function buildGauge() {
     setGauge(0, false);
 }
 
-function setGauge(mbps, hasData = true) {
+function setGauge(kbps, hasData = true) {
 
     const progress = document.getElementById("gaugeProgress");
     const needle = document.getElementById("gaugeNeedle");
@@ -282,12 +282,12 @@ function setGauge(mbps, hasData = true) {
 
     if (!progress || !needle || !valueText) return;
 
-    const f = Math.max(speedFraction(mbps), 0.004);
+    const f = Math.max(speedFraction(kbps), 0.004);
     const deg = GAUGE.start + GAUGE.sweep * f;
 
     progress.setAttribute("d", gaugeArc(GAUGE.r, GAUGE.start, deg));
-    needle.style.transform = `rotate(${GAUGE.start + GAUGE.sweep * speedFraction(mbps)}deg)`;
-    valueText.textContent = hasData ? mbps.toFixed(2) : "—";
+    needle.style.transform = `rotate(${GAUGE.start + GAUGE.sweep * speedFraction(kbps)}deg)`;
+    valueText.textContent = hasData ? kbps.toFixed(2) : "—";
 }
 
 function formatAge(date) {
@@ -308,7 +308,7 @@ function updateSpeedCard(rows) {
     const latest = rows[0];
 
     const hasSpeed = hasValue(latest.upload_kbps);
-    setGauge(hasSpeed ? Number(latest.upload_kbps) / 1000 : 0, hasSpeed);
+    setGauge(hasSpeed ? Number(latest.upload_kbps) : 0, hasSpeed);
 
     const pingEl = document.getElementById("speedPing");
     const jitterEl = document.getElementById("speedJitter");
@@ -341,7 +341,7 @@ function updateSpeedCard(rows) {
 
 let telemetrySpeedChartInstance = null;
 
-function renderSpeedChart(labels, uploadMbps, pingMs) {
+function renderSpeedChart(labels, uploadKbps, pingMs) {
 
     const ctx = document.getElementById("telemetrySpeedChart");
 
@@ -362,8 +362,8 @@ function renderSpeedChart(labels, uploadMbps, pingMs) {
             labels: labels,
             datasets: [
                 {
-                    label: "Upload (Mbps)",
-                    data: uploadMbps,
+                    label: "Upload (Kbps)",
+                    data: uploadKbps,
                     yAxisID: "y",
                     borderColor: "#b57bff",
                     backgroundColor: "rgba(181, 123, 255, 0.15)",
@@ -399,7 +399,7 @@ function renderSpeedChart(labels, uploadMbps, pingMs) {
                     position: "left",
                     ticks: { color: light },
                     grid: { color: gridColor },
-                    title: { display: true, text: "Mbps", color: light }
+                    title: { display: true, text: "Kbps", color: light }
                 },
                 y1: {
                     beginAtZero: true,

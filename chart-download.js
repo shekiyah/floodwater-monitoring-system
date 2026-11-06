@@ -91,10 +91,10 @@
       table: 'system_status',
       timeCol: 'updated_at',
       series: [
-        { col: 'upload_kbps', label: 'Upload (Mbps)', color: '#7c4dff', axis: 'y', fill: true, map: v => v / 1000 },
+        { col: 'upload_kbps', label: 'Upload (Kbps)', color: '#7c4dff', axis: 'y', fill: true },
         { col: 'ping_ms', label: 'Ping (ms)', color: '#0b9fc4', axis: 'y1' }
       ],
-      axes: { y: { text: 'Mbps', position: 'left' }, y1: { text: 'ms', position: 'right' } },
+      axes: { y: { text: 'Kbps', position: 'left' }, y1: { text: 'ms', position: 'right' } },
       interval: telemetryInterval,
       theme: 'cd-purple'
     }
@@ -257,7 +257,7 @@
         const labels = Array.from(visibleChart.data.labels);
         const datasets = visibleChart.data.datasets || [];
         const uploadSeries =
-          datasets.find(ds => ds.label === 'Upload (Mbps)') || datasets[0];
+          datasets.find(ds => ds.label === 'Upload (Kbps)') || datasets[0];
         const pingSeries =
           datasets.find(ds => ds.label === 'Ping (ms)') || datasets[1];
 
