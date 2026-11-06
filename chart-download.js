@@ -43,7 +43,7 @@
       timeCol: 'created_at',
       series: [{ col: 'water_level', label: 'Water level (m)', color: '#0b7bb5', axis: 'y', fill: true }],
       axes: { y: { text: 'Meters', position: 'left', min: 0,
-                   max: () => (typeof CHART_Y_MAX !== 'undefined' ? CHART_Y_MAX : 8) } },
+                   max: () => (typeof CHART_Y_MAX !== 'undefined' ? CHART_Y_MAX : 9) } },
       interval: dashboardInterval,
       stats: { col: 'water_level', unit: 'm' },
       theme: 'cd-blue'

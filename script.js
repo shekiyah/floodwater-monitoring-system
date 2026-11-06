@@ -275,7 +275,7 @@ const CHART_MAX_LIVE_POINTS = 5000;
 // rather than silently getting cut off at the oldest end.
 const CHART_QUERY_LIMIT = 5000;
 
-const CHART_Y_MAX = 8; // top of the vertical range, meters
+const CHART_Y_MAX = 9; // top of the vertical range, meters
 
 // Current range state.
 let chartPeriodIsLive = true;      // true = range includes "now" and keeps growing
