@@ -1,305 +1,325 @@
-// supabaseClient and escapeHtml come from supabase-config.js;
-// requireRole comes from nav.js.
+// Recipient Management
+// Uses the existing Supabase `recipients` table.
+// The email column may remain in the database for compatibility, but this
+// page no longer asks for, displays, or sends email addresses.
 
-// Admin + moderator only. nav.js hides the link for viewers, but that
-// doesn't stop a viewer who knows the URL, so the page checks too.
-// The RLS policies on `recipients` (and `sms_queue` / `email_queue`,
-// used by notifyNewRecipient) are the real security boundary.
-
-const recipientBody = document.getElementById("recipientBody");
 const recipientForm = document.getElementById("recipientForm");
+const recipientBody = document.getElementById("recipientBody");
+const recipientCount = document.getElementById("recipientCount");
+const recipientFormMessage = document.getElementById("recipientFormMessage");
+const recipientPageMessage = document.getElementById("recipientPageMessage");
 const submitButton = document.getElementById("submitButton");
-const cancelEditButton = document.getElementById("cancelEditButton");
 
-// When set, the form is in "edit" mode instead of "add" mode.
-let editingRecipientId = null;
+const RECIPIENT_PAGE_SIZE = 500;
 
-// Rows by id, so the buttons only need to carry the id.
+let recipients = [];
 let recipientsById = new Map();
 
-function showRecipientsMessage(text) {
+function setFormMessage(message, type = "") {
+    recipientFormMessage.textContent = message;
+    recipientFormMessage.className = `form-status${type ? ` form-status--${type}` : ""}`;
+}
 
-    recipientBody.innerHTML =
-        `<tr class="table-empty"><td colspan="5">${escapeHtml(text)}</td></tr>`;
+function setPageMessage(message, type = "") {
+    recipientPageMessage.textContent = message;
+    recipientPageMessage.className =
+        `form-status recipient-page-message${type ? ` form-status--${type}` : ""}`;
+}
+
+function showRecipientsMessage(message) {
+    recipientBody.innerHTML = `
+        <tr class="table-empty">
+            <td colspan="4">${escapeHtml(message)}</td>
+        </tr>
+    `;
+}
+
+// Fetch in pages so the page is not limited to the first default Supabase
+// response window. Supabase Row Level Security still controls which records
+// the signed-in administrator/moderator is allowed to see.
+async function fetchAllRecipients() {
+    const allRecipients = [];
+
+    for (let offset = 0; ; offset += RECIPIENT_PAGE_SIZE) {
+        const { data, error } = await supabaseClient
+            .from("recipients")
+            .select("id, name, mobile_number, active, created_at")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false })
+            .range(offset, offset + RECIPIENT_PAGE_SIZE - 1);
+
+        if (error) {
+            throw error;
+        }
+
+        const page = data || [];
+        allRecipients.push(...page);
+
+        if (page.length < RECIPIENT_PAGE_SIZE) {
+            break;
+        }
+    }
+
+    return allRecipients;
 }
 
 async function loadRecipients() {
+    recipientCount.textContent = "Loading recipients...";
+    showRecipientsMessage("Loading registered recipients...");
 
-    const { data, error } = await supabaseClient
-        .from("recipients")
-        .select("*")
-        .order("created_at", { ascending: false });
+    try {
+        recipients = await fetchAllRecipients();
+        recipientsById = new Map(
+            recipients.map(recipient => [String(recipient.id), recipient])
+        );
 
-    if (error) {
+        renderRecipientTable();
+    } catch (error) {
         console.error("Load recipients error:", error);
-        showRecipientsMessage("Could not load recipients. Refresh the page to try again.");
+        recipientCount.textContent = "Unable to load recipients";
+        showRecipientsMessage("Could not load recipients. Check your connection or database permissions.");
+        setPageMessage(`Could not load recipients: ${error.message}`, "error");
+    }
+}
+
+function renderRecipientTable() {
+    recipientCount.textContent =
+        `${recipients.length} registered recipient${recipients.length === 1 ? "" : "s"}`;
+
+    if (recipients.length === 0) {
+        showRecipientsMessage("No recipients have been registered yet.");
         return;
     }
 
-    recipientsById = new Map(data.map(recipient => [String(recipient.id), recipient]));
+    recipientBody.innerHTML = recipients.map(recipient => {
+        const isActive = recipient.active === true;
+        const safeId = escapeHtml(recipient.id);
 
-    renderRecipientTable(data);
+        return `
+            <tr>
+                <td class="td-text">${escapeHtml(recipient.name || "-")}</td>
+                <td>${escapeHtml(recipient.mobile_number || "-")}</td>
+                <td>
+                    <span class="pill ${isActive ? "pill--on" : "pill--off"}">
+                        ${isActive ? "Active" : "Inactive"}
+                    </span>
+                </td>
+                <td>
+                    <div class="row-actions recipient-actions">
+                        <button
+                            type="button"
+                            class="btn btn--secondary btn--sm recipient-state-button"
+                            data-action="set-active"
+                            data-id="${safeId}"
+                            ${isActive ? "disabled aria-pressed=\"true\"" : "aria-pressed=\"false\""}
+                        >Active</button>
+
+                        <button
+                            type="button"
+                            class="btn btn--secondary btn--sm recipient-state-button"
+                            data-action="set-inactive"
+                            data-id="${safeId}"
+                            ${!isActive ? "disabled aria-pressed=\"true\"" : "aria-pressed=\"false\""}
+                        >Inactive</button>
+
+                        <button
+                            type="button"
+                            class="btn btn--ghost-danger btn--sm"
+                            data-action="delete"
+                            data-id="${safeId}"
+                        >Delete</button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }).join("");
 }
 
-function renderRecipientTable(data) {
+recipientForm.addEventListener("submit", addRecipient);
 
-    if (data.length === 0) {
-        showRecipientsMessage("No recipients yet. Add the first person above to start sending alerts.");
-        return;
-    }
-
-    recipientBody.innerHTML = data.map(recipient => `
-        <tr>
-            <td class="td-text">${escapeHtml(recipient.name || "-")}</td>
-            <td>${escapeHtml(recipient.mobile_number || "-")}</td>
-            <td>${escapeHtml(recipient.email || "-")}</td>
-            <td>
-                <span class="pill ${recipient.active ? "pill--on" : "pill--off"}">
-                    ${recipient.active ? "Active" : "Inactive"}
-                </span>
-            </td>
-            <td>
-                <div class="row-actions">
-                    <button type="button" class="btn btn--secondary btn--sm"
-                            data-action="edit" data-id="${escapeHtml(recipient.id)}">Edit</button>
-                    <button type="button" class="btn btn--secondary btn--sm"
-                            data-action="toggle" data-id="${escapeHtml(recipient.id)}">
-                        ${recipient.active ? "Deactivate" : "Activate"}
-                    </button>
-                    <button type="button" class="btn btn--ghost-danger btn--sm"
-                            data-action="delete" data-id="${escapeHtml(recipient.id)}">Delete</button>
-                </div>
-            </td>
-        </tr>
-    `).join("");
-}
-
-recipientBody.addEventListener("click", event => {
-
+recipientBody.addEventListener("click", async event => {
     const button = event.target.closest("button[data-action]");
 
-    if (!button) {
+    if (!button || button.disabled) {
         return;
     }
 
-    const id = button.dataset.id;
+    const { action, id } = button.dataset;
 
-    if (button.dataset.action === "edit") {
-        startEditRecipient(id);
-    } else if (button.dataset.action === "toggle") {
-        toggleActive(id);
-    } else if (button.dataset.action === "delete") {
-        deleteRecipient(id);
+    if (action === "set-active") {
+        await updateRecipientStatus(id, true);
+    } else if (action === "set-inactive") {
+        await updateRecipientStatus(id, false);
+    } else if (action === "delete") {
+        await deleteRecipient(id);
     }
 });
 
 async function addRecipient(event) {
-
     event.preventDefault();
 
     const nameInput = document.getElementById("recipientName");
     const mobileInput = document.getElementById("mobileNumber");
-    const emailInput = document.getElementById("email");
 
     const name = nameInput.value.trim();
     const mobile = mobileInput.value.trim();
-    const email = emailInput.value.trim();
 
     if (!name || !mobile) {
-        alert("Enter at least a name and a mobile number.");
+        setFormMessage("Enter both the recipient's name and mobile number.", "error");
         return;
     }
 
     submitButton.disabled = true;
+    submitButton.textContent = "Adding...";
 
     try {
-
-        // Edit mode: update the existing row instead of inserting.
-        if (editingRecipientId) {
-
-            const { error } = await supabaseClient
-                .from("recipients")
-                .update({
-                    name: name,
-                    mobile_number: mobile,
-                    email: email || null
-                })
-                .eq("id", editingRecipientId);
-
-            if (error) {
-                alert("Could not save changes: " + error.message);
-                return;
-            }
-
-            cancelEditRecipient();
-            loadRecipients();
-            return;
-        }
-
         const { data, error } = await supabaseClient
             .from("recipients")
             .insert({
-                name: name,
+                name,
                 mobile_number: mobile,
-                email: email || null,
+                email: null, // Kept null for compatibility with the existing database column.
                 active: true
             })
-            .select()
+            .select("id, name, mobile_number, active, created_at")
             .single();
 
         if (error) {
-            alert("Could not add the recipient: " + error.message);
-            return;
+            throw error;
         }
 
         recipientForm.reset();
+        setFormMessage(`${name} was added successfully.`, "ok");
 
-        await notifyNewRecipient(data);
-        loadRecipients();
+        await queueWelcomeSms(data);
+        await loadRecipients();
 
+    } catch (error) {
+        console.error("Add recipient error:", error);
+        setFormMessage(`Could not add recipient: ${error.message}`, "error");
     } finally {
         submitButton.disabled = false;
+        submitButton.textContent = "Add Recipient";
     }
 }
 
-function startEditRecipient(id) {
-
-    const recipient = recipientsById.get(String(id));
-
-    if (!recipient) {
+// Keep the existing SMS welcome-notification behavior. No email is collected
+// or queued by this page.
+async function queueWelcomeSms(recipient) {
+    if (!recipient.mobile_number) {
         return;
     }
 
-    editingRecipientId = recipient.id;
+    const { error } = await supabaseClient
+        .from("sms_queue")
+        .insert({
+            phone: recipient.mobile_number,
+            message: `Hi ${recipient.name}, you've been added as a recipient for Flood Monitoring System alerts.`,
+            status: "PENDING"
+        });
 
-    document.getElementById("recipientName").value = recipient.name || "";
-    document.getElementById("mobileNumber").value = recipient.mobile_number || "";
-    document.getElementById("email").value = recipient.email || "";
-
-    submitButton.textContent = "Save changes";
-    cancelEditButton.hidden = false;
-
-    document.getElementById("recipientName").focus();
-    recipientForm.scrollIntoView({ behavior: "smooth", block: "nearest" });
-}
-
-function cancelEditRecipient() {
-
-    editingRecipientId = null;
-
-    recipientForm.reset();
-
-    submitButton.textContent = "Add recipient";
-    cancelEditButton.hidden = true;
-}
-
-async function notifyNewRecipient(recipient) {
-
-    // Queue a welcome SMS (sent by the GSM module reading sms_queue)
-    // and a welcome email (sent by a backend worker reading
-    // email_queue). Neither blocks the recipient being added, but
-    // failures are shown, since a silent failure here means nobody
-    // would know the welcome message never went out.
-    const failures = [];
-
-    if (recipient.mobile_number) {
-
-        const { error: smsError } = await supabaseClient
-            .from("sms_queue")
-            .insert({
-                phone: recipient.mobile_number,
-                message: `Hi ${recipient.name}, you've been added as a recipient for Flood Monitoring System alerts.`,
-                status: "PENDING"
-            });
-
-        if (smsError) {
-            console.error("SMS queue error:", smsError);
-            failures.push(`SMS: ${smsError.message}`);
-        }
-    }
-
-    if (recipient.email) {
-
-        const { error: emailError } = await supabaseClient
-            .from("email_queue")
-            .insert({
-                recipient_email: recipient.email,
-                subject: "Added as Flood Alert Recipient",
-                message: `Hi ${recipient.name}, you've been added as a recipient for Flood Monitoring System alerts. You will be notified when water levels reach ALERT, CRITICAL, or DANGER.`,
-                status: "PENDING"
-            });
-
-        if (emailError) {
-            console.error("Email queue error:", emailError);
-            failures.push(`Email: ${emailError.message}`);
-        }
-    }
-
-    if (failures.length > 0) {
-        alert(
-            "The recipient was added, but the welcome message could not be queued:\n\n" +
-            failures.join("\n") +
-            "\n\nThey will still get future flood alerts. Check the database " +
-            "permissions for sms_queue and email_queue."
+    if (error) {
+        console.error("Welcome SMS queue error:", error);
+        setFormMessage(
+            `${recipient.name} was added, but the welcome SMS could not be queued: ${error.message}`,
+            "error"
         );
     }
 }
 
-async function toggleActive(id) {
-
+async function updateRecipientStatus(id, active) {
     const recipient = recipientsById.get(String(id));
 
-    if (!recipient) {
+    if (!recipient || recipient.active === active) {
         return;
     }
 
-    const { error } = await supabaseClient
-        .from("recipients")
-        .update({ active: !recipient.active })
-        .eq("id", recipient.id);
+    const actionButtons = Array.from(
+        recipientBody.querySelectorAll("button[data-id]")
+    ).filter(button => button.dataset.id === String(id));
 
-    if (error) {
-        alert(error.message);
-        return;
+    actionButtons.forEach(button => {
+        button.disabled = true;
+    });
+
+    try {
+        const { data, error } = await supabaseClient
+            .from("recipients")
+            .update({ active })
+            .eq("id", recipient.id)
+            .select("id, active")
+            .maybeSingle();
+
+        if (error) {
+            throw error;
+        }
+
+        if (!data) {
+            throw new Error("No record was updated. Check the recipients table permissions in Supabase.");
+        }
+
+        recipient.active = data.active;
+        renderRecipientTable();
+
+        setPageMessage(
+            `${recipient.name} is now ${data.active ? "Active" : "Inactive"}.`,
+            "ok"
+        );
+
+    } catch (error) {
+        console.error("Update recipient status error:", error);
+        setPageMessage(`Could not update status: ${error.message}`, "error");
+        await loadRecipients();
     }
-
-    loadRecipients();
 }
 
 async function deleteRecipient(id) {
-
     const recipient = recipientsById.get(String(id));
 
     if (!recipient) {
         return;
     }
 
-    if (!confirm("Remove this recipient? They will stop receiving alerts.")) {
+    const confirmed = confirm(
+        `Delete ${recipient.name || "this recipient"}? This will remove the recipient from the registered list.`
+    );
+
+    if (!confirmed) {
         return;
     }
 
-    const { error } = await supabaseClient
-        .from("recipients")
-        .delete()
-        .eq("id", recipient.id);
+    try {
+        const { data, error } = await supabaseClient
+            .from("recipients")
+            .delete()
+            .eq("id", recipient.id)
+            .select("id")
+            .maybeSingle();
 
-    if (error) {
-        alert(error.message);
-        return;
+        if (error) {
+            throw error;
+        }
+
+        if (!data) {
+            throw new Error("No record was deleted. Check the recipients table permissions in Supabase.");
+        }
+
+        recipients = recipients.filter(item => String(item.id) !== String(id));
+        recipientsById.delete(String(id));
+        renderRecipientTable();
+
+        setPageMessage(`${recipient.name} was deleted.`, "ok");
+
+    } catch (error) {
+        console.error("Delete recipient error:", error);
+        setPageMessage(`Could not delete recipient: ${error.message}`, "error");
     }
-
-    if (editingRecipientId === recipient.id) {
-        cancelEditRecipient();
-    }
-
-    loadRecipients();
 }
 
-async function init() {
-
+async function initRecipientManagement() {
     if (await requireRole("moderator")) {
-        loadRecipients();
+        await loadRecipients();
     }
 }
 
-init();
+initRecipientManagement();

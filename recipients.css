@@ -1,0 +1,111 @@
+/* Recipient Management page styles. Scoped so other pages are unchanged. */
+
+body.recipient-page .recipient-form-card {
+    margin-bottom: 22px;
+    text-align: left;
+}
+
+body.recipient-page .recipient-form-card .card-title {
+    margin-bottom: 2px;
+    text-align: left;
+}
+
+body.recipient-page .recipient-form-card .field {
+    width: 100%;
+}
+
+body.recipient-page .recipient-form-card .form-actions {
+    justify-content: flex-start;
+}
+
+body.recipient-page .recipient-form-card .form-status {
+    min-height: 0;
+}
+
+body.recipient-page .recipient-list-section {
+    margin-top: 22px;
+}
+
+body.recipient-page .recipient-list-heading {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 10px;
+}
+
+body.recipient-page .recipient-list-heading .card-title {
+    margin: 0;
+}
+
+body.recipient-page .recipient-list-heading .table-meta {
+    margin: 0;
+    text-align: right;
+}
+
+body.recipient-page .recipient-table-card {
+    width: 100%;
+    overflow-x: auto;
+    text-align: left;
+}
+
+body.recipient-page .recipient-table-card table {
+    width: 100%;
+    min-width: 680px;
+    table-layout: auto;
+}
+
+body.recipient-page .recipient-table-card th:nth-child(3),
+body.recipient-page .recipient-table-card td:nth-child(3) {
+    width: 120px;
+}
+
+body.recipient-page .recipient-table-card th:last-child,
+body.recipient-page .recipient-table-card td:last-child {
+    width: 300px;
+}
+
+body.recipient-page .recipient-table-card td:nth-child(2) {
+    white-space: nowrap;
+}
+
+body.recipient-page .recipient-actions {
+    align-items: center;
+    gap: 7px;
+}
+
+body.recipient-page .recipient-actions .btn {
+    min-width: 78px;
+}
+
+body.recipient-page .recipient-actions .recipient-state-button:disabled {
+    opacity: 0.72;
+    color: var(--river-deep);
+    background: #EAF2F3;
+    border-color: #B9CDD1;
+    cursor: default;
+}
+
+body.recipient-page .recipient-page-message {
+    margin-top: 10px;
+}
+
+@media (max-width: 640px) {
+    body.recipient-page .recipient-form-card {
+        padding: 18px 16px;
+    }
+
+    body.recipient-page .recipient-form-card .form-actions .btn {
+        width: 100%;
+    }
+
+    body.recipient-page .recipient-list-heading {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 2px;
+    }
+
+    body.recipient-page .recipient-list-heading .table-meta {
+        text-align: left;
+    }
+}
