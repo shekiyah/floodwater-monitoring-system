@@ -45,25 +45,142 @@ async function loadSystemStatus() {
 }
 
 // TELEMETRY HISTORY (speed chart)
-async function loadTelemetryHistory() {
+// Default view is the most recent 48 hours. A custom date range can be
+// applied to retrieve older records from system_status.
+const TELEMETRY_HISTORY_PAGE_SIZE = 1000;
+let activeTelemetryRange = null;
+let telemetryHistoryRequestId = 0;
 
-    // 48-hour window keeps query cost bounded as system_status grows.
-    const windowStart = new Date(Date.now() - 48 * 60 * 60 * 1000);
+function showTelemetryHistoryMessage(message, isError = false) {
+    const el = document.getElementById("telemetryHistoryMessage");
+    if (!el) return;
+    el.textContent = message || "";
+    el.hidden = !message;
+    el.classList.toggle("is-stale", Boolean(message) && isError);
+}
 
-    const { data, error } = await supabaseClient
-        .from("system_status")
-        .select("*")
-        .gte("updated_at", windowStart.toISOString())
-        .order("updated_at", { ascending: true })
-        .limit(2000);
+function getTelemetryCustomRange() {
+
+    const startInput = document.getElementById("telemetryCustomStart");
+    const endInput = document.getElementById("telemetryCustomEnd");
+
+    if (!startInput?.value || !endInput?.value) {
+        alert("Choose both a start and an end date.");
+        return null;
+    }
+
+    // The date fields use Philippine calendar dates (UTC+08:00).
+    // The end boundary is exclusive, so the selected end date is included.
+    const start = new Date(`${startInput.value}T00:00:00+08:00`);
+    const end = new Date(`${endInput.value}T00:00:00+08:00`);
+    end.setTime(end.getTime() + 24 * 60 * 60 * 1000);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start >= end) {
+        alert("The start date must be on or before the end date.");
+        return null;
+    }
+
+    return {
+        start,
+        end,
+        startLabel: startInput.value,
+        endLabel: endInput.value
+    };
+}
+
+function applyTelemetryDateRange() {
+
+    const range = getTelemetryCustomRange();
+    if (!range) return;
+
+    activeTelemetryRange = range;
+    loadTelemetryHistory(range);
+}
+
+async function fetchTelemetryHistoryRows(range) {
+
+    const defaultStart = new Date(Date.now() - 48 * 60 * 60 * 1000);
+    const rows = [];
+    let offset = 0;
+
+    // Fetch in pages so longer date ranges are not silently limited to the
+    // first page of records returned by Supabase.
+    while (true) {
+
+        let query = supabaseClient
+            .from("system_status")
+            .select("updated_at, upload_kbps, ping_ms");
+
+        if (range) {
+            query = query
+                .gte("updated_at", range.start.toISOString())
+                .lt("updated_at", range.end.toISOString());
+        } else {
+            query = query.gte("updated_at", defaultStart.toISOString());
+        }
+
+        const { data, error } = await query
+            .order("updated_at", { ascending: true })
+            .range(offset, offset + TELEMETRY_HISTORY_PAGE_SIZE - 1);
+
+        if (error) {
+            return { data: null, error };
+        }
+
+        const page = data || [];
+        rows.push(...page);
+
+        if (page.length < TELEMETRY_HISTORY_PAGE_SIZE) {
+            break;
+        }
+
+        offset += TELEMETRY_HISTORY_PAGE_SIZE;
+    }
+
+    return { data: rows, error: null };
+}
+
+async function loadTelemetryHistory(range = activeTelemetryRange) {
+
+    const requestId = ++telemetryHistoryRequestId;
+    const heading = document.getElementById("telemetryChartHeading");
+
+    if (heading) {
+        heading.textContent = range
+            ? `Upload Speed & Ping (${range.startLabel} to ${range.endLabel})`
+            : "Upload Speed & Ping (48h)";
+    }
+
+    showTelemetryHistoryMessage(
+        range ? "Loading telemetry for the selected dates…" : "Loading the latest 48 hours…"
+    );
+
+    const { data, error } = await fetchTelemetryHistoryRows(range);
+
+    // Ignore an older response if the user applied another date range while
+    // the previous request was still running.
+    if (requestId !== telemetryHistoryRequestId) return;
 
     if (error) {
         console.error("Telemetry history error:", error);
-        showTelemetryMessage(`Telemetry history failed to load: ${error.message}`, true);
+        if (telemetrySpeedChartInstance) {
+            telemetrySpeedChartInstance.destroy();
+            telemetrySpeedChartInstance = null;
+        }
+        showTelemetryHistoryMessage(`Telemetry history failed to load: ${error.message}`, true);
         return;
     }
 
     if (!data || data.length === 0) {
+        if (telemetrySpeedChartInstance) {
+            telemetrySpeedChartInstance.destroy();
+            telemetrySpeedChartInstance = null;
+        }
+        showTelemetryHistoryMessage(
+            range
+                ? "No telemetry records found for the selected dates."
+                : "No telemetry records found in the last 48 hours."
+        );
         return;
     }
 
@@ -74,6 +191,8 @@ async function loadTelemetryHistory() {
         data.map(row => hasValue(row.upload_kbps) ? Number(row.upload_kbps) / 1000 : null),
         data.map(row => hasValue(row.ping_ms) ? Number(row.ping_ms) : null)
     );
+
+    showTelemetryHistoryMessage("");
 }
 
 // Two-line tick labels (date over time) so they fit on a phone.

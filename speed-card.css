@@ -51,3 +51,70 @@
 
 .speed-chart { margin-top: 16px; }
 .speed-chart .mini-heading { color: #c9ccf0; }
+
+/* Custom date filter for telemetry history */
+.telemetry-date-range {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin: 12px 0 16px;
+}
+
+.telemetry-date-range-label {
+    color: #9aa0c8;
+    font: 600 13px var(--font-display);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+.telemetry-date-range input[type="date"] {
+    width: auto;
+    min-width: 0;
+    padding: 10px 12px;
+    color: #e9ebff;
+    color-scheme: dark;
+    background: #132c3f;
+    border: 1px solid rgba(154, 160, 200, 0.28);
+    border-radius: 9px;
+    font: 500 15px var(--font-body);
+}
+
+.telemetry-date-range input[type="date"]:focus {
+    outline: 2px solid rgba(95, 227, 255, 0.65);
+    outline-offset: 1px;
+    border-color: rgba(95, 227, 255, 0.65);
+}
+
+.telemetry-apply-btn {
+    padding: 10px 22px;
+    color: #e9ebff;
+    background: #123447;
+    border: 1px solid rgba(95, 227, 255, 0.22);
+    border-radius: 9px;
+    font: 600 15px var(--font-body);
+    cursor: pointer;
+    transition: background 0.18s ease, border-color 0.18s ease;
+}
+
+.telemetry-apply-btn:hover {
+    background: #19465b;
+    border-color: rgba(95, 227, 255, 0.48);
+}
+
+.telemetry-apply-btn:focus-visible {
+    outline: 2px solid #5fe3ff;
+    outline-offset: 2px;
+}
+
+@media (max-width: 520px) {
+    .telemetry-date-range {
+        justify-content: flex-start;
+    }
+
+    .telemetry-date-range input[type="date"] {
+        flex: 1 1 145px;
+    }
+}
+

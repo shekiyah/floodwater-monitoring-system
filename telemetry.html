@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="speed-card.css">
+<link rel="stylesheet" href="style.css?v=20261106-water-level-86">
+<link rel="stylesheet" href="speed-card.css?v=20261106-telemetry-date-range">
 </head>
 <body>
 
@@ -155,7 +155,16 @@
         </p>
 
         <div class="telemetry-chart speed-chart">
-            <h4 class="mini-heading">Upload Speed &amp; Ping (48h)</h4>
+            <div class="telemetry-date-range" role="group" aria-label="Custom telemetry date range">
+                <span class="telemetry-date-range-label">CUSTOM:</span>
+                <input type="date" id="telemetryCustomStart" aria-label="Start date">
+                <span class="telemetry-date-range-label">TO</span>
+                <input type="date" id="telemetryCustomEnd" aria-label="End date">
+                <button type="button" class="telemetry-apply-btn" onclick="applyTelemetryDateRange()">Apply</button>
+            </div>
+
+            <p id="telemetryHistoryMessage" class="speed-note" role="status" aria-live="polite" hidden></p>
+            <h4 class="mini-heading" id="telemetryChartHeading">Upload Speed &amp; Ping (48h)</h4>
             <canvas id="telemetrySpeedChart"></canvas>
         </div>
 
@@ -168,7 +177,7 @@
 <script src="supabase-config.js"></script>
 <script src="chart-theme.js"></script>
 <script src="nav.js"></script>
-<script src="telemetry.js"></script>
+<script src="telemetry.js?v=20261106-telemetry-date-range"></script>
 <script src="chart-download.js"></script>
 
 </body>
