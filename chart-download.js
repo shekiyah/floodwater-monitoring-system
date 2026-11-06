@@ -195,7 +195,7 @@
     const chart = new Chart(canvas, {
       type: 'line',
       data: {
-        labels: pts.map(p => lab(p.t)),
+        labels: pts.map(p => p.label !== undefined ? p.label : lab(p.t)),
         datasets: cfg.series.map((s, i) => ({
           label: s.label, yAxisID: s.axis, data: pts.map(p => p.v[i]),
           borderColor: s.color, backgroundColor: s.color + '26',
@@ -238,8 +238,53 @@
     try {
       const { from, to } = cfg.interval();
       btn.textContent = 'Preparing image…';
-      const rows = await fetchRows(cfg, from, to);
-      if (!rows.length) { btn.disabled = false; flash('No readings in that interval', 3000); return; }
+
+      let rows;
+
+      if (cfg.canvasId === 'telemetrySpeedChart') {
+        // Export the exact data already displayed in the Telemetry chart.
+        // This avoids a second Supabase query using potentially different
+        // date boundaries from the query that populated the visible graph.
+        const visibleChart =
+          typeof telemetrySpeedChartInstance !== 'undefined'
+            ? telemetrySpeedChartInstance
+            : null;
+
+        if (!visibleChart || !visibleChart.data || !visibleChart.data.labels?.length) {
+          throw new Error('The telemetry chart has no displayed readings to export. Apply the date range first.');
+        }
+
+        const labels = Array.from(visibleChart.data.labels);
+        const datasets = visibleChart.data.datasets || [];
+        const uploadSeries =
+          datasets.find(ds => ds.label === 'Upload (Mbps)') || datasets[0];
+        const pingSeries =
+          datasets.find(ds => ds.label === 'Ping (ms)') || datasets[1];
+
+        rows = labels.map((label, index) => {
+          const uploadValue = uploadSeries?.data?.[index];
+          const pingValue = pingSeries?.data?.[index];
+
+          return {
+            // The original display label is retained for the exported x-axis.
+            label: String(label),
+            t: from,
+            v: [
+              hasVal(uploadValue) ? Number(uploadValue) : null,
+              hasVal(pingValue) ? Number(pingValue) : null
+            ]
+          };
+        }).filter(row => row.v.some(value => value !== null));
+      } else {
+        rows = await fetchRows(cfg, from, to);
+      }
+
+      if (!rows.length) {
+        btn.disabled = false;
+        flash('No readings in the displayed chart', 3000);
+        return;
+      }
+
       await renderAndDownload(cfg, rows, from, to);
       btn.disabled = false; flash('✔ Downloaded', 1500);
     } catch (err) {
