@@ -10,8 +10,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="style.css">
-<link rel="stylesheet" href="welcome.css">
+<link rel="stylesheet" href="style.css?v=20261106-water-level-86">
+<link rel="stylesheet" href="welcome.css?v=20261106-water-level-86">
 </head>
 <body class="welcome">
 
@@ -50,7 +50,7 @@
 
             </div>
 
-            <figure class="board" role="img" aria-label="Illustration: a water-level gauge whose pointer rises through the Normal, Alert, Critical and Danger zones.">
+            <figure class="board" role="img" aria-label="Illustrative water-level gauge scaled from 0 to 8.6 meters, with Normal, Alert, Critical and Danger thresholds.">
 
                 <div class="board-head" aria-hidden="true">
                     <span class="board-title">How the gauge reads</span>
@@ -64,15 +64,15 @@
 
                 <div class="board-body" aria-hidden="true">
 
-                    <div class="board-scale"><span style="bottom:0.00%">0</span><span style="bottom:15.38%">1</span><span style="bottom:30.77%">2</span><span style="bottom:46.15%">3</span><span style="bottom:61.54%">4</span><span style="bottom:76.92%">5</span><span style="bottom:92.31%">6 m</span></div>
+                    <div class="board-scale"><span style="bottom:0%">0</span><span style="bottom:23.26%">2</span><span style="bottom:46.51%">4</span><span style="bottom:69.77%">6</span><span style="bottom:93.02%">8</span><span style="bottom:100%">8.6 m</span></div>
 
                     <div class="board-gauge"><div class="board-rider"></div></div>
 
                     <div class="board-zones">
-                        <div class="zone zone--danger">Danger<small>Above 5.5 m</small></div>
-                        <div class="zone zone--critical">Critical<small>4.0 to 5.5 m</small></div>
-                        <div class="zone zone--alert">Alert<small>2.0 to 4.0 m</small></div>
-                        <div class="zone zone--normal">Normal<small>Up to 2.0 m</small></div>
+                        <div class="zone zone--danger">Danger<small>L ≥ 6.40 m</small></div>
+                        <div class="zone zone--critical">Critical<small>4.00 ≤ L &lt; 6.40 m</small></div>
+                        <div class="zone zone--alert">Alert<small>2.00 &lt; L &lt; 4.00 m</small></div>
+                        <div class="zone zone--normal">Normal<small>L ≤ 2.00 m</small></div>
                     </div>
 
                 </div>

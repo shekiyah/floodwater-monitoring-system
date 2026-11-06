@@ -7,9 +7,9 @@
 // than this. Set it to a few multiples of how often the device posts.
 const SENSOR_STALE_MINUTES = 30;
 
-// Must match the 7 m scale the threshold markers in dashboard.html
-// and the band edges in style.css are positioned against.
-const GAUGE_SCALE_MAX = 7;
+// Must match the 8.6 m scale used by the threshold markers in
+// dashboard.html and the band edges in style.css.
+const GAUGE_SCALE_MAX = 8.6;
 
 function updateWaterDisplay(level){
 

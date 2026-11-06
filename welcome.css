@@ -272,7 +272,7 @@ body.welcome::after { display: none; }
 
 .board-body {
     display: grid;
-    grid-template-columns: 30px 52px minmax(0, 1fr);
+    grid-template-columns: 42px 52px minmax(0, 1fr);
     column-gap: 12px;
     height: 340px;
 }
@@ -291,10 +291,10 @@ body.welcome::after { display: none; }
     position: relative;
     background: linear-gradient(
         to top,
-        var(--gauge-normal)   0%,     var(--gauge-normal)   30.77%,
-        var(--gauge-alert)    30.77%, var(--gauge-alert)    61.54%,
-        var(--gauge-critical) 61.54%, var(--gauge-critical) 86.15%,
-        var(--gauge-danger)   86.15%, var(--gauge-danger)   100%
+        var(--gauge-normal)   0%,     var(--gauge-normal)   23.26%,
+        var(--gauge-alert)    23.26%, var(--gauge-alert)    46.51%,
+        var(--gauge-critical) 46.51%, var(--gauge-critical) 74.42%,
+        var(--gauge-danger)   74.42%, var(--gauge-danger)   100%
     );
     border: 2px solid rgba(255, 255, 255, 0.35);
     border-radius: 5px;
@@ -306,8 +306,8 @@ body.welcome::after { display: none; }
     inset: 0;
     background: repeating-linear-gradient(
         0deg,
-        transparent 0, transparent calc(100% / 6.5 - 1px),
-        rgba(0, 0, 0, 0.2) calc(100% / 6.5 - 1px), rgba(0, 0, 0, 0.2) calc(100% / 6.5)
+        transparent 0, transparent calc(100% / 8.6 - 1px),
+        rgba(0, 0, 0, 0.2) calc(100% / 8.6 - 1px), rgba(0, 0, 0, 0.2) calc(100% / 8.6)
     );
     pointer-events: none;
 }
@@ -359,52 +359,51 @@ body.welcome::after { display: none; }
     color: rgba(255, 255, 255, 0.62);
 }
 
-.zone--danger   { --at: 93%;   --dot: var(--gauge-danger);   color: #FF8F8F; }
-.zone--critical { --at: 73.8%; --dot: var(--gauge-critical); color: #FFA867; }
-.zone--alert    { --at: 46.2%; --dot: var(--gauge-alert);    color: #F6D36B; }
-.zone--normal   { --at: 15.4%; --dot: var(--gauge-normal);   color: #7BE0A0; }
+.zone--danger   { --at: 87.21%; --dot: var(--gauge-danger);   color: #FF8F8F; }
+.zone--critical { --at: 60.47%; --dot: var(--gauge-critical); color: #FFA867; }
+.zone--alert    { --at: 34.88%; --dot: var(--gauge-alert);    color: #F6D36B; }
+.zone--normal   { --at: 11.63%; --dot: var(--gauge-normal);   color: #7BE0A0; }
 
-/* Pointer path, % of gauge height. Segments are linear so the
-   state-chip fades below line up with the zone boundaries
-   (30.77 / 61.54 / 86.15%). */
+/* Pointer path, % of gauge height on the 8.6 m scale. The pointer
+   visits a representative reading in each flood-status band. */
 @keyframes gaugeRide {
-    0%, 8%  { transform: translateY(-14%); }
-    24%     { transform: translateY(-44%); }
-    32%     { transform: translateY(-44%); }
-    46%     { transform: translateY(-72%); }
-    50%     { transform: translateY(-72%); }
-    58%     { transform: translateY(-91%); }
-    64%     { transform: translateY(-91%); }
-    80%     { transform: translateY(-44%); }
-    92%, 100% { transform: translateY(-14%); }
+    0%, 8%  { transform: translateY(-10.47%); }
+    24%     { transform: translateY(-34.88%); }
+    32%     { transform: translateY(-34.88%); }
+    46%     { transform: translateY(-60.47%); }
+    50%     { transform: translateY(-60.47%); }
+    58%     { transform: translateY(-87.21%); }
+    64%     { transform: translateY(-87.21%); }
+    80%     { transform: translateY(-34.88%); }
+    92%, 100% { transform: translateY(-10.47%); }
 }
 
 @keyframes stateNormal {
-    0%, 16.8%   { opacity: 1; }
-    17%, 85.1%  { opacity: 0; }
-    85.3%, 100% { opacity: 1; }
+    0%, 16.2%   { opacity: 1; }
+    16.4%, 85.6% { opacity: 0; }
+    85.8%, 100% { opacity: 1; }
 }
 
 @keyframes stateAlert {
-    0%, 16.8%   { opacity: 0; }
-    17%, 40.6%  { opacity: 1; }
-    40.8%, 73.8% { opacity: 0; }
-    74%, 85.1%  { opacity: 1; }
-    85.3%, 100% { opacity: 0; }
+    0%, 16.2%   { opacity: 0; }
+    16.4%, 38.2% { opacity: 1; }
+    38.4%, 76.2% { opacity: 0; }
+    76.4%, 85.6% { opacity: 1; }
+    85.8%, 100% { opacity: 0; }
 }
 
 @keyframes stateCritical {
-    0%, 40.6%   { opacity: 0; }
-    40.8%, 55.8% { opacity: 1; }
-    56%, 65.5%  { opacity: 0; }
-    65.7%, 73.8% { opacity: 1; }
-    74%, 100%   { opacity: 0; }
+    0%, 38.2%   { opacity: 0; }
+    38.4%, 54%  { opacity: 1; }
+    54.2%, 67.7% { opacity: 0; }
+    67.9%, 76.2% { opacity: 1; }
+    76.4%, 100% { opacity: 0; }
 }
 
 @keyframes stateDanger {
-    0%, 55.8%   { opacity: 0; }
-    56%, 65.5%  { opacity: 1; }
-    65.7%, 100% { opacity: 0; }
+    0%, 54%     { opacity: 0; }
+    54.2%, 67.7% { opacity: 1; }
+    67.9%, 100% { opacity: 0; }
 }
 
 
@@ -525,7 +524,7 @@ body.welcome::after { display: none; }
     .cta { width: 100%; }
 
     .board { padding: 16px 16px 20px; }
-    .board-body { height: 300px; grid-template-columns: 26px 44px minmax(0, 1fr); column-gap: 10px; }
+    .board-body { height: 300px; grid-template-columns: 42px 44px minmax(0, 1fr); column-gap: 10px; }
     .zone { font-size: 13px; }
     .zone small { font-size: 12px; }
 }
@@ -534,7 +533,7 @@ body.welcome::after { display: none; }
    single matching chip, rather than an empty board. */
 @media (prefers-reduced-motion: reduce) {
 
-    .board-rider { transform: translateY(-44%); }
+    .board-rider { transform: translateY(-34.88%); }
 
     .state--alert { opacity: 1; }
 }
