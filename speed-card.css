@@ -73,25 +73,25 @@
     width: auto;
     min-width: 0;
     padding: 10px 12px;
-    color: #e9ebff;
+    color: #d9d3ff;
     color-scheme: dark;
-    background: #132c3f;
-    border: 1px solid rgba(154, 160, 200, 0.28);
+    background: #1b1b3a;
+    border: 1px solid #3a3a6e;
     border-radius: 9px;
     font: 500 15px var(--font-body);
 }
 
 .telemetry-date-range input[type="date"]:focus {
-    outline: 2px solid rgba(95, 227, 255, 0.65);
+    outline: 2px solid #7c4dff;
     outline-offset: 1px;
-    border-color: rgba(95, 227, 255, 0.65);
+    border-color: #7c4dff;
 }
 
 .telemetry-apply-btn {
     padding: 10px 22px;
-    color: #e9ebff;
-    background: #123447;
-    border: 1px solid rgba(95, 227, 255, 0.22);
+    color: #d9d3ff;
+    background: #1b1b3a;
+    border: 1px solid #3a3a6e;
     border-radius: 9px;
     font: 600 15px var(--font-body);
     cursor: pointer;
@@ -99,12 +99,12 @@
 }
 
 .telemetry-apply-btn:hover {
-    background: #19465b;
-    border-color: rgba(95, 227, 255, 0.48);
+    background: #29294f;
+    border-color: #6252a0;
 }
 
 .telemetry-apply-btn:focus-visible {
-    outline: 2px solid #5fe3ff;
+    outline: 2px solid #7c4dff;
     outline-offset: 2px;
 }
 
