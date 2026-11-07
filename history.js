@@ -1,10 +1,20 @@
 // supabaseClient, getFloodStatus, parseSupabaseTimestamp and
 // escapeHtml come from supabase-config.js
 
-// Caps how many rows one query pulls back. The table says so when a
+// Supabase's API returns at most 1000 rows per request (server-side cap), no
+// matter what .limit() asks for. All loaders below therefore fetch in pages of
+// HISTORY_PAGE_SIZE rows and join the pages together.
+const HISTORY_PAGE_SIZE = 1000;
+
+// Caps how many rows the table shows. The table says so when a
 // result hits it, so a truncated list is never mistaken for the
 // whole history.
+//   - default view (no date range): most recent HISTORY_ROW_LIMIT rows
+//   - custom date range search:     up to HISTORY_RANGE_ROW_LIMIT rows
+//   - Excel download:               up to HISTORY_EXPORT_ROW_LIMIT rows
 const HISTORY_ROW_LIMIT = 5000;
+const HISTORY_RANGE_ROW_LIMIT = 30000;
+const HISTORY_EXPORT_ROW_LIMIT = 200000;
 const HISTORY_AUTO_REFRESH_MS = 15000;
 
 // History timestamps are always displayed in Philippine Standard Time (UTC+08:00),
@@ -70,6 +80,7 @@ function makeHistoryExportStamp(value) {
 // update the table without re-fetching thousands of rows after every snapshot.
 let historyRows = [];
 let activeHistoryRange = null;
+let activeRowLimit = HISTORY_ROW_LIMIT;
 let historyChannel = null;
 let smsEventQueryWarning = false;
 let historyRefreshInProgress = false;
@@ -86,54 +97,95 @@ function showHistoryMessage(text) {
 }
 
 // ---------------------------------------------------------------------
+// PAGED FETCH — pulls rows 1000 at a time until maxRows is reached or
+// the table runs out. buildQuery must return a FRESH query each call.
+// Rows are de-duplicated by id, because a new row inserted while the
+// pages are loading can shift a row onto the next page.
+// ---------------------------------------------------------------------
+async function fetchAllPages(buildQuery, maxRows) {
+
+    let all = [];
+
+    for (let from = 0; all.length < maxRows; from += HISTORY_PAGE_SIZE) {
+
+        const size = Math.min(HISTORY_PAGE_SIZE, maxRows - all.length);
+        const { data, error } = await buildQuery().range(from, from + size - 1);
+
+        if (error) {
+            return { data: null, error };
+        }
+
+        all = all.concat(data || []);
+
+        if (!data || data.length < size) break; // reached the last page
+    }
+
+    const seen = new Set();
+    const unique = all.filter(row => {
+        if (row.id === undefined || row.id === null) return true;
+        if (seen.has(row.id)) return false;
+        seen.add(row.id);
+        return true;
+    });
+
+    return { data: unique, error: null };
+}
+
+// ---------------------------------------------------------------------
 // SHARED DATA ACCESS — the default load, custom Search and custom
 // Download all go through this one query builder.
 // rangeStart / rangeEnd are optional Date objects; either or both may
 // be null for an open-ended bound.
 // ---------------------------------------------------------------------
-async function fetchReadings(rangeStart, rangeEnd) {
+async function fetchReadings(rangeStart, rangeEnd, maxRows = HISTORY_ROW_LIMIT) {
 
-    let query = supabaseClient
-        .from("water_readings")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(HISTORY_ROW_LIMIT);
+    return await fetchAllPages(() => {
 
-    if (rangeStart) {
-        query = query.gte("created_at", rangeStart.toISOString());
-    }
+        let query = supabaseClient
+            .from("water_readings")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false }); // stable order between pages
 
-    if (rangeEnd) {
-        query = query.lt("created_at", rangeEnd.toISOString());
-    }
+        if (rangeStart) {
+            query = query.gte("created_at", rangeStart.toISOString());
+        }
 
-    return await query;
+        if (rangeEnd) {
+            query = query.lt("created_at", rangeEnd.toISOString());
+        }
+
+        return query;
+    }, maxRows);
 }
 
 // The ESP32 already records the exact SMS text in alert_events. Read those
 // events and extract the water level from the message rather than inserting a
 // second water_readings row that could trigger another database alert.
-async function fetchSmsAlertEvents(rangeStart, rangeEnd) {
+async function fetchSmsAlertEvents(rangeStart, rangeEnd, maxRows = HISTORY_ROW_LIMIT) {
 
-    let query = supabaseClient
-        .from("alert_events")
-        .select("*")
-        .order("created_at", { ascending: false })
-        .limit(HISTORY_ROW_LIMIT);
+    return await fetchAllPages(() => {
 
-    // Alert events can be inserted shortly after the SMS itself is sent.
-    // Expand the database query bounds, then filter by the SMS timestamp below.
-    if (rangeStart) {
-        const queryStart = new Date(rangeStart.getTime() - 120000);
-        query = query.gte("created_at", queryStart.toISOString());
-    }
+        let query = supabaseClient
+            .from("alert_events")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .order("id", { ascending: false });
 
-    if (rangeEnd) {
-        const queryEnd = new Date(rangeEnd.getTime() + 120000);
-        query = query.lt("created_at", queryEnd.toISOString());
-    }
+        // Alert events can be inserted shortly after the SMS itself is sent.
+        // Expand the database query bounds, then filter by the SMS timestamp below.
+        if (rangeStart) {
+            const queryStart = new Date(rangeStart.getTime() - 120000);
+            query = query.gte("created_at", queryStart.toISOString());
+        }
 
-    return await query;
+        if (rangeEnd) {
+            const queryEnd = new Date(rangeEnd.getTime() + 120000);
+            query = query.lt("created_at", queryEnd.toISOString());
+        }
+
+        return query;
+    }, maxRows);
 }
 
 function normalizeSmsAlertEvent(event) {
@@ -176,11 +228,11 @@ function normalizeSmsAlertEvent(event) {
     };
 }
 
-async function fetchCombinedHistory(rangeStart, rangeEnd) {
+async function fetchCombinedHistory(rangeStart, rangeEnd, maxRows = HISTORY_ROW_LIMIT) {
 
     const [readingsResult, smsResult] = await Promise.all([
-        fetchReadings(rangeStart, rangeEnd),
-        fetchSmsAlertEvents(rangeStart, rangeEnd)
+        fetchReadings(rangeStart, rangeEnd, maxRows),
+        fetchSmsAlertEvents(rangeStart, rangeEnd, maxRows)
     ]);
 
     if (readingsResult.error) {
@@ -208,7 +260,7 @@ async function fetchCombinedHistory(rangeStart, rangeEnd) {
     );
 
     return {
-        data: combined.slice(0, HISTORY_ROW_LIMIT),
+        data: combined.slice(0, maxRows),
         error: null,
         smsEventError: smsResult.error || null
     };
@@ -220,11 +272,13 @@ async function fetchCombinedHistory(rangeStart, rangeEnd) {
 async function loadHistory(customRange) {
 
     activeHistoryRange = customRange || null;
+    activeRowLimit = customRange ? HISTORY_RANGE_ROW_LIMIT : HISTORY_ROW_LIMIT;
     showHistoryMessage("Loading readings…");
 
     const { data, error, smsEventError } = await fetchCombinedHistory(
         activeHistoryRange ? activeHistoryRange.start : null,
-        activeHistoryRange ? activeHistoryRange.end : null
+        activeHistoryRange ? activeHistoryRange.end : null,
+        activeRowLimit
     );
 
     smsEventQueryWarning = Boolean(smsEventError);
@@ -256,11 +310,13 @@ async function refreshHistorySilently() {
 
     historyRefreshInProgress = true;
     const requestedRange = activeHistoryRange;
+    const requestedLimit = activeRowLimit;
 
     try {
         const { data, error, smsEventError } = await fetchCombinedHistory(
             requestedRange ? requestedRange.start : null,
-            requestedRange ? requestedRange.end : null
+            requestedRange ? requestedRange.end : null,
+            requestedLimit
         );
 
         // If the user searched a different range while this request was running,
@@ -399,9 +455,11 @@ function renderHistoryTable(data, customRange) {
     const smsCount = data.filter(row => row.source === "sms_alert").length;
     const sensorCount = data.length - smsCount;
 
-    historyMeta.textContent = data.length >= HISTORY_ROW_LIMIT
-        ? `Showing the most recent ${shown} records. Choose a date range to see older ones.`
-        : `${sensorCount} sensor reading${sensorCount === 1 ? "" : "s"} and ${smsCount} SMS alert record${smsCount === 1 ? "" : "s"}.`;
+    historyMeta.textContent = data.length >= activeRowLimit
+        ? (customRange
+            ? `Showing the most recent ${shown} records in this range. Use Download to get every record.`
+            : `Showing the most recent ${shown} records. Choose a date range to see older ones.`)
+        : `${sensorCount.toLocaleString()} sensor reading${sensorCount === 1 ? "" : "s"} and ${smsCount} SMS alert record${smsCount === 1 ? "" : "s"}.`;
 
     if (smsEventQueryWarning) {
         historyMeta.textContent += " SMS alert records may be missing because alert_events could not be read; check Supabase SELECT permissions.";
@@ -486,7 +544,11 @@ async function deleteCustomRangeData() {
 // ---------------------------------------------------------------------
 async function exportReadingsToExcel(rangeStart, rangeEnd, filename) {
 
-    const { data, error, smsEventError } = await fetchCombinedHistory(rangeStart, rangeEnd);
+    const { data, error, smsEventError } = await fetchCombinedHistory(
+        rangeStart,
+        rangeEnd,
+        HISTORY_EXPORT_ROW_LIMIT
+    );
 
     if (smsEventError) {
         console.warn("Excel export could not include SMS alert events because alert_events was not readable:", smsEventError);
@@ -607,7 +669,7 @@ function handleHistoryInsert(payload) {
 
     historyRows = [row, ...historyRows]
         .sort((a, b) => parseSupabaseTimestamp(b.created_at) - parseSupabaseTimestamp(a.created_at))
-        .slice(0, HISTORY_ROW_LIMIT);
+        .slice(0, activeRowLimit);
 
     renderHistoryTable(historyRows, activeHistoryRange);
 }
@@ -625,7 +687,7 @@ function handleSmsAlertInsert(payload) {
 
     historyRows = [row, ...historyRows]
         .sort((a, b) => parseSupabaseTimestamp(b.created_at) - parseSupabaseTimestamp(a.created_at))
-        .slice(0, HISTORY_ROW_LIMIT);
+        .slice(0, activeRowLimit);
 
     renderHistoryTable(historyRows, activeHistoryRange);
 }
