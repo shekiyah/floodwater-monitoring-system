@@ -278,7 +278,7 @@
         <!-- Map + station health -->
         <section class="map-health" id="station">
 
-            <div class="card area-map">
+            <div class="card map-card">
                 <div class="panel-head">
                     <h3>📍 Station location</h3>
                     <span class="panel-meta" id="mapCoords">—</span>
@@ -339,6 +339,15 @@
 <script src="script.js"></script>
 <script src="dashboard-extras.js"></script>
 <script src="chart-download.js"></script>
+<script>
+// Make the Leaflet map re-measure itself once the page layout has settled,
+// so it never renders only part of its tiles.
+window.addEventListener("load", function () {
+    [300, 1200].forEach(function (ms) {
+        setTimeout(function () { window.dispatchEvent(new Event("resize")); }, ms);
+    });
+});
+</script>
 
 </body>
 </html>
