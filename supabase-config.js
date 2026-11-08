@@ -33,24 +33,82 @@ function parseSupabaseTimestamp(value) {
     return new Date(hasZone ? value : value + "Z");
 }
 
-// Flood status thresholds, in meters. The dashboard and the history
-// log both use this, and the gauge bands in style.css and
-// dashboard.html are drawn from the same numbers.
+// Flood status thresholds, in meters. The dashboard, the history log
+// and the gauge all use this, and the gauge bands in style.css and
+// dashboard.html are drawn from the same numbers:
+//
+//   below 2.00            NORMAL
+//   2.00  to below 4.00   ALERT
+//   4.00  to below 6.40   CRITICAL
+//   6.40 and above        DANGER
+//
+// A missing or non-numeric level is UNKNOWN rather than being
+// silently classified.
 function getFloodStatus(level) {
 
-    if (level <= 2) {
+    if (level === null || level === undefined || level === "") {
+        return "UNKNOWN";
+    }
+
+    const meters = Number(level);
+
+    if (!Number.isFinite(meters)) {
+        return "UNKNOWN";
+    }
+
+    if (meters < 2) {
         return "NORMAL";
     }
 
-    if (level < 4) {
+    if (meters < 4) {
         return "ALERT";
     }
 
-    if (level < 6.4) {
+    if (meters < 6.4) {
         return "CRITICAL";
     }
 
     return "DANGER";
+}
+
+// ---------------------------------------------------------------
+// MONITORING-SYSTEM TIME ZONE
+// The station is in the Philippines. Day boundaries and every time
+// shown on the dashboard use Asia/Manila (UTC+8, no daylight saving)
+// no matter what time zone the viewer's device is set to.
+// ---------------------------------------------------------------
+const MONITOR_TIMEZONE = "Asia/Manila";
+const MONITOR_UTC_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+// "YYYY-MM-DD" (a <input type="date"> value) -> the UTC millisecond
+// instant of 00:00:00.000 on that calendar day in Manila.
+function monitorDayStartMs(ymd) {
+
+    const [year, month, day] = String(ymd).split("-").map(Number);
+
+    return Date.UTC(year, month - 1, day) - MONITOR_UTC_OFFSET_MS;
+}
+
+// Today's calendar date in Manila, as "YYYY-MM-DD".
+function monitorTodayString(nowMs = Date.now()) {
+
+    return new Date(nowMs + MONITOR_UTC_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+const MONITOR_FORMATS = {
+    date: new Intl.DateTimeFormat("en-US", { timeZone: MONITOR_TIMEZONE, year: "numeric", month: "short", day: "numeric" }),
+    shortDate: new Intl.DateTimeFormat("en-US", { timeZone: MONITOR_TIMEZONE, month: "short", day: "numeric" }),
+    time: new Intl.DateTimeFormat("en-US", { timeZone: MONITOR_TIMEZONE, hour: "numeric", minute: "2-digit", hour12: true }),
+    timeSeconds: new Intl.DateTimeFormat("en-US", { timeZone: MONITOR_TIMEZONE, hour: "numeric", minute: "2-digit", second: "2-digit", hour12: true })
+};
+
+function formatMonitorDate(ms) { return MONITOR_FORMATS.date.format(ms); }
+function formatMonitorShortDate(ms) { return MONITOR_FORMATS.shortDate.format(ms); }
+function formatMonitorTime(ms, withSeconds = false) {
+    return (withSeconds ? MONITOR_FORMATS.timeSeconds : MONITOR_FORMATS.time).format(ms);
+}
+function formatMonitorDateTime(ms, withSeconds = false) {
+    return formatMonitorDate(ms) + ", " + formatMonitorTime(ms, withSeconds);
 }
 
 // Escape text before putting it into an innerHTML template string.

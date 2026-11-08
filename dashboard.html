@@ -10,9 +10,10 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
-<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
-<link rel="stylesheet" href="style.css?v=20261106-water-level-86">
-<link rel="stylesheet" href="dashboard-pro.css?v=3">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="dashboard-pro.css">
+<link rel="stylesheet" href="dashboard-unified.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body class="dash-pro">
 
@@ -67,6 +68,16 @@
                     Recipients
                 </a>
 
+                <a href="message-settings.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">✉️</span>
+                    Messages
+                </a>
+
+                <a href="ota.html" class="nav-dropdown-item" role="menuitem" data-min-role="admin">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🔧</span>
+                    Firmware
+                </a>
+
                 <a href="dashboard.html#settings" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
                     <span class="icon-chip icon-chip--menu" aria-hidden="true">⚙️</span>
                     Settings
@@ -91,6 +102,7 @@
     <div class="container"><p class="lede">This page needs JavaScript to load live data. Turn it on and reload.</p></div>
 </noscript>
 
+    <!-- Main Dashboard -->
     <main class="container" id="main">
 
         <div class="page-header">
@@ -100,184 +112,218 @@
             </div>
         </div>
 
+        <!-- Warning Message (always follows the LIVE reading) -->
         <div id="alertBox" class="alert-box" role="alert"></div>
 
-        <section class="kpi-strip" id="readings">
-        <article class="card tile" style="--tc:#E8B93A">
-            <h3><span class="glyph" aria-hidden="true">⚠️</span> Current status</h3>
-            <p id="status" class="status-badge">Loading...</p>
-        </article>
-        <article class="card tile" style="--tc:#4cc3e8">
-            <h3><span class="glyph" aria-hidden="true">📡</span> Sensor connection</h3>
-            <p id="sensorConnection" class="checking" aria-live="polite">Checking…</p>
-        </article>
-        <article class="card tile" style="--tc:#8aa5b5">
-            <h3><span class="glyph" aria-hidden="true">📅</span> Last reading</h3>
-            <p id="date" class="kpi-date">Loading...</p>
-        </article>
-        <article class="card tile" style="--tc:#E6B25E">
-            <h3><span class="glyph" aria-hidden="true">📨</span> Last SMS alert</h3>
-            <p id="lastSmsAlertLevel">Loading...</p>
-            <p id="lastSmsAlertStatus" class="status-badge unknown">Loading...</p>
-            <p id="lastSmsAlertTime" class="kpi-date">Checking alert history…</p>
-        </article>
-        <article class="card tile" style="--tc:#4cc3e8">
-            <h3><span class="glyph" aria-hidden="true">📊</span> Total readings</h3>
-            <p id="totalReadings">0</p>
-        </article>
-        <article class="card tile" style="--tc:#E2711D">
-            <h3><span class="glyph" aria-hidden="true">⬆️</span> Highest level</h3>
-            <p id="highestLevel">0 m</p>
-        </article>
-        <article class="card tile" style="--tc:#2E9E4F">
-            <h3><span class="glyph" aria-hidden="true">⬇️</span> Lowest level</h3>
-            <p id="lowestLevel">0 m</p>
-        </article>
-        </section>
+<!-- ===== UNIFIED DASHBOARD START ===== -->
+<section class="unified-card" id="unifiedDashboard" data-status="unknown" aria-label="Station dashboard">
 
-        <div class="dash-main">
+    <header class="unified-head">
+        <h3 class="unified-title">Station overview</h3>
+        <span class="mode-badge" id="modeBadge" role="status" aria-live="polite">LATEST LIVE READING</span>
+    </header>
 
-        <article class="card card--gauge area-gauge">
+    <div class="unified-body">
 
-                <svg class="station-icon" viewBox="0 0 56 62" aria-hidden="true">
-                    <line class="pole" x1="14" y1="10" x2="14" y2="58"/>
-                    <rect class="panel" x="4" y="4" width="16" height="8" rx="1.5" transform="rotate(-18 12 8)"/>
-                    <path class="arm" d="M14 20 H40"/>
-                    <path class="lead" d="M40 20 V44"/>
-                    <circle class="sensor" cx="40" cy="20" r="5"/>
-                    <circle class="pulse" cx="40" cy="20" r="1.6"/>
-                </svg>
+        <!-- LEFT: seven information indicators -->
+        <div class="unified-info" id="readings">
 
-                <h3>💧 Water Level</h3>
-
-                <div
-                    class="water-level"
-                    id="waterLevel"
-                >
-                    Loading...
-                </div>
-
-                <div class="gauge-shell">
-
-                    <div
-                        class="gauge"
-                        role="img" aria-label="Water-level gauge, scaled 0 to 8.6 meters"
-                    >
-
-                        <div
-                            class="fill"
-                            id="waterFill"
-                        ></div>
-
-                    </div>
-
-                    <div class="threshold threshold--danger" style="bottom:74.42%">
-                        <span class="threshold-label">6.40 DANGER</span>
-                    </div>
-
-                    <div class="threshold threshold--critical" style="bottom:46.51%">
-                        <span class="threshold-label">4.00 CRITICAL</span>
-                    </div>
-
-                    <div class="threshold threshold--alert" style="bottom:23.26%">
-                        <span class="threshold-label">2.00 ALERT</span>
-                    </div>
-
-                </div>
-
-                <p>Current monitored water level</p>
-
+            <article class="u-tile u-tile--w3">
+                <div class="u-title"><span class="icon-chip icon-chip--status" aria-hidden="true">⚠️</span><span id="statusTitle">Current Status</span></div>
+                <div class="u-value"><p id="status" class="status-badge unknown">Loading...</p></div>
             </article>
 
-        <section
-            class="card chart-card area-chart"
-            id="reports"
-        >
+            <article class="u-tile u-tile--w3">
+                <div class="u-title"><span class="icon-chip icon-chip--sensor" aria-hidden="true">📡</span><span>Sensor Connection</span></div>
+                <div class="u-value"><p id="sensorConnection" class="checking" aria-live="polite">Checking…</p></div>
+            </article>
 
-            <h3><span class="icon-chip icon-chip--chart">📈</span> Water-Level History</h3>
+            <article class="u-tile u-tile--w3">
+                <div class="u-title"><span class="icon-chip icon-chip--time" aria-hidden="true">📅</span><span id="dateTitle">Last Reading</span></div>
+                <div class="u-value"><p id="date">Loading...</p></div>
+            </article>
 
-            <!-- Admin/moderator only — hidden by default, shown by
-                 nav.js's applyPermissions() once the user's role is
-                 known. Lets them load a custom date range instead
-                 of always showing today. -->
-            <div class="chart-period-buttons" id="chartPeriodButtons" data-min-role="moderator">
-
-                <div class="chart-custom-range" id="chartCustomRange">
-                    <span class="chart-custom-range-label">Custom:</span>
-                    <input type="date" id="chartCustomStart" aria-label="Custom range start date">
-                    <span class="chart-custom-range-label">to</span>
-                    <input type="date" id="chartCustomEnd" aria-label="Custom range end date">
-                    <button type="button" class="chart-period-btn" onclick="selectCustomChartRange()">Apply</button>
+            <article class="u-tile u-tile--w3">
+                <div class="u-title"><span class="icon-chip icon-chip--status" aria-hidden="true">✉️</span><span>Last SMS Alert</span></div>
+                <div class="u-value u-value--stack">
+                    <span id="smsLevel">—</span>
+                    <span id="smsStatus" class="status-badge unknown" hidden></span>
+                    <span id="smsTime" class="u-sub"></span>
                 </div>
+            </article>
 
-            </div>
+            <article class="u-tile u-tile--w4">
+                <div class="u-title"><span class="icon-chip icon-chip--total" aria-hidden="true">📊</span><span>Total Readings</span></div>
+                <div class="u-value"><p id="totalReadings">0</p></div>
+            </article>
 
-            <div class="chart-area">
+            <article class="u-tile u-tile--w4">
+                <div class="u-title"><span class="icon-chip icon-chip--high" aria-hidden="true">⬆️</span><span>Highest Level</span></div>
+                <div class="u-value"><p id="highestLevel">0 m</p></div>
+            </article>
 
-                <div class="chart-canvas-wrap">
-                    <canvas id="waterChart"></canvas>
-                </div>
-
-            </div>
-
-            <div class="chart-zoom-nav" id="chartZoomNav">
-
-                <input
-                    type="range"
-                    id="chartZoomSlider"
-                    class="chart-zoom-slider"
-                    min="0"
-                    max="0"
-                    value="0"
-                    step="1"
-                    oninput="onChartZoomSlide(this.value)"
-                    aria-label="Slide to a specific reading to zoom in"
-                >
-
-                <div class="chart-zoom-nav-row">
-
-                    <span id="chartZoomLabel" class="chart-zoom-label">
-                        No data
-                    </span>
-
-                    <button
-                        type="button"
-                        class="chart-point-btn"
-                        id="chartZoomReset"
-                        onclick="resetChartZoom()"
-                        disabled
-                    >
-                        Show Full Range
-                    </button>
-
-                </div>
-
-            </div>
-
-        </section>
-
-        <section class="card panel area-map" id="stationMap">
-            <div class="panel-head">
-                <h3><span class="glyph" aria-hidden="true">📍</span> Monitoring station location</h3>
-                <span class="panel-meta" id="mapCoords">—</span>
-            </div>
-            <div id="map" class="map-canvas" role="region" aria-label="Map showing the latest cellular location estimate for the monitoring station"></div>
-            <p class="map-location-status" id="mapLocationStatus" role="status" aria-live="polite">Loading station location…</p>
-        </section>
+            <article class="u-tile u-tile--w4">
+                <div class="u-title"><span class="icon-chip icon-chip--low" aria-hidden="true">⬇️</span><span>Lowest Level</span></div>
+                <div class="u-value"><p id="lowestLevel">0 m</p></div>
+            </article>
 
         </div>
 
+        <!-- RIGHT: water level gauge (same container) -->
+        <div class="unified-gauge">
+
+            <div class="gauge-title">💧 Water Level</div>
+
+            <div class="water-level" id="waterLevel">Loading...</div>
+
+            <span class="status-badge unknown" id="gaugeStatus">—</span>
+
+            <div class="gauge-when">
+                <span id="gaugeDate">—</span>
+                <span id="gaugeTime">—</span>
+            </div>
+
+            <div class="gauge-shell">
+
+                <div class="gauge" role="img" aria-label="Water-level gauge, scaled 0 to 7 meters">
+                    <div class="fill" id="waterFill"></div>
+                </div>
+
+                <!-- Positions = level / 7 m. 2.00 -> 28.57%, 4.00 -> 57.14%, 6.40 -> 91.43% -->
+                <div class="threshold threshold--danger" style="bottom:91.43%">
+                    <span class="threshold-label">6.40 DANGER</span>
+                </div>
+
+                <div class="threshold threshold--critical" style="bottom:57.14%">
+                    <span class="threshold-label">4.00 CRITICAL</span>
+                </div>
+
+                <div class="threshold threshold--alert" style="bottom:28.57%">
+                    <span class="threshold-label">2.00 ALERT</span>
+                </div>
+
+            </div>
+
+            <button type="button" class="return-btn" id="returnLatestBtn" onclick="returnToLatestReading()" disabled>
+                RETURN TO LATEST READING
+            </button>
+
+        </div>
+
+    </div>
+
+</section>
+<!-- ===== UNIFIED DASHBOARD END ===== -->
+
+
+<!-- ===== WATER-LEVEL HISTORY START ===== -->
+<section class="card chart-card unified-chart" id="reports">
+
+    <h3><span class="icon-chip icon-chip--chart">📈</span> Water-Level History</h3>
+
+    <!-- Admin/moderator only (nav.js applyPermissions). -->
+    <div class="chart-period-buttons" id="chartPeriodButtons" data-min-role="moderator">
+
+        <div class="chart-custom-range" id="chartCustomRange">
+            <span class="chart-custom-range-label">Custom:</span>
+            <input type="date" id="chartCustomStart" aria-label="Custom range start date">
+            <span class="chart-custom-range-label">to</span>
+            <input type="date" id="chartCustomEnd" aria-label="Custom range end date">
+            <button type="button" class="chart-period-btn" onclick="selectCustomChartRange()">Apply</button>
+        </div>
+
+    </div>
+
+    <div class="chart-area">
+
+        <div class="chart-canvas-wrap">
+            <canvas id="waterChart"></canvas>
+            <div class="chart-empty" id="chartEmpty" hidden></div>
+        </div>
+
+    </div>
+
+    <p class="chart-meta" id="chartMeta" aria-live="polite">Loading readings…</p>
+
+    <div class="chart-zoom-nav" id="chartZoomNav">
+
+        <input
+            type="range"
+            id="chartZoomSlider"
+            class="chart-zoom-slider"
+            min="0"
+            max="0"
+            value="0"
+            step="1"
+            oninput="onChartZoomSlide(this.value)"
+            aria-label="Slide to a specific reading to zoom in"
+        >
+
+        <div class="chart-zoom-nav-row">
+
+            <span id="chartZoomLabel" class="chart-zoom-label">No data</span>
+
+            <button type="button" class="chart-point-btn" id="chartZoomReset" onclick="resetChartZoom()" disabled>
+                Show Full Range
+            </button>
+
+        </div>
+
+    </div>
+
+</section>
+<!-- ===== WATER-LEVEL HISTORY END ===== -->
+
+
+        <!-- Map + station health -->
+        <section class="map-health" id="station">
+
+            <div class="card area-map">
+                <div class="panel-head">
+                    <h3>📍 Station location</h3>
+                    <span class="panel-meta" id="mapCoords">—</span>
+                </div>
+                <div class="map-canvas" id="map"></div>
+                <p class="map-location-status" id="mapLocationStatus">Loading location…</p>
+            </div>
+
+            <div class="card health-card">
+                <div class="panel-head">
+                    <h3>🩺 Station health</h3>
+                    <span class="panel-meta" id="hUpdated">Loading…</span>
+                </div>
+                <dl class="health-grid">
+                    <div><dt>Internet</dt><dd id="hInternet">—</dd></div>
+                    <div><dt>Device</dt><dd id="hDevice">—</dd></div>
+                    <div>
+                        <dt>GSM signal</dt>
+                        <dd><span class="sig-bars" id="hBars" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span> <span id="hSignal">—</span></dd>
+                    </div>
+                    <div><dt>Upload speed</dt><dd id="hSpeed">—</dd></div>
+                    <div><dt>Ping</dt><dd id="hPing">—</dd></div>
+                </dl>
+            </div>
+
+        </section>
+
+        <!-- Station settings: shortcuts to the pages each role can use -->
         <section class="card settings-card card--settings" id="settings" data-min-role="moderator">
 
             <h3><span class="icon-chip icon-chip--settings">⚙️</span> Station settings</h3>
 
             <div class="settings-links">
-
                 <a class="settings-link" href="recipients.html">
                     <strong>Recipients</strong>
                     <span>Choose who gets SMS and email alerts.</span>
                 </a>
-
+                <a class="settings-link" href="message-settings.html">
+                    <strong>Alert messages</strong>
+                    <span>Edit the wording sent at each flood level.</span>
+                </a>
+                <a class="settings-link" href="ota.html" data-min-role="admin">
+                    <strong>Firmware</strong>
+                    <span>Upload and publish updates for the sensor device.</span>
+                </a>
             </div>
 
         </section>
@@ -286,13 +332,13 @@
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
-<script src="supabase-config.js?v=20261019-canonical-alert-sync"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="supabase-config.js"></script>
 <script src="chart-theme.js"></script>
 <script src="nav.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
-<script src="dashboard-extras.js?v=5"></script>
-<script src="script.js?v=20261106-water-level-9m"></script>
-<script src="chart-download.js?v=20261106-water-level-9m"></script>
+<script src="script.js"></script>
+<script src="dashboard-extras.js"></script>
+<script src="chart-download.js"></script>
 
 </body>
 </html>

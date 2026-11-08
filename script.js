@@ -1,35 +1,121 @@
-// supabaseClient, getFloodStatus and parseSupabaseTimestamp come from
-// supabase-config.js. Nav (user info, role-based menu, dropdown, logout)
-// lives in nav.js. This file only handles the dashboard's own data: the
-// gauge, chart, stats, and sensor connection.
+// supabaseClient, getFloodStatus, parseSupabaseTimestamp and the
+// formatMonitor* / monitorDayStartMs helpers come from supabase-config.js.
+// Nav (user info, role-based menu, dropdown, logout) lives in nav.js.
+// This file handles the dashboard's own data: the unified dashboard
+// container (info cards + gauge), the Water-Level History chart, stats,
+// and sensor connection.
+//
+// TWO DISPLAY MODES
+//   LIVE        the container shows the newest reading and follows realtime
+//               inserts (default).
+//   HISTORICAL  the user clicked a real data point on the chart; the gauge,
+//               value, status and timestamp show that reading. Sensor
+//               Connection, Last SMS Alert, Total/Highest/Lowest always stay
+//               live / system-wide. Nothing is ever written to the database.
 
 // A sensor counts as connected while its newest reading is no older
 // than this. Set it to a few multiples of how often the device posts.
+// The chart also draws a visible gap when two readings are further apart.
 const SENSOR_STALE_MINUTES = 30;
 
-// Must match the 8.6 m scale used by the threshold markers in
-// dashboard.html and the band edges in style.css.
-const GAUGE_SCALE_MAX = 8.6;
+// Must match the 7 m scale the threshold markers in dashboard.html
+// and the band edges in style.css are positioned against.
+const GAUGE_SCALE_MAX = 7;
 
-function updateWaterDisplay(level){
+const CHART_Y_MAX = 9;              // minimum top of the vertical range, meters (grows if a reading is higher)
+const CHART_QUERY_LIMIT = 50000;    // safety cap on rows loaded for one range
+const CHART_PAGE_SIZE = 1000;       // Supabase returns at most this many rows per request
+const CHART_ZOOM_WINDOW_RADIUS = 20;
+const CHART_GAP_BREAK_MS = SENSOR_STALE_MINUTES * 60 * 1000;
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const STATUS_COLORS = {
+    NORMAL: "#2E9E4F",
+    ALERT: "#E8B93A",
+    CRITICAL: "#E2711D",
+    DANGER: "#D93A3A",
+    UNKNOWN: "#8aa5b5"
+};
+
+const CHART_THRESHOLDS = [
+    { value: 2, label: "ALERT 2.00", color: STATUS_COLORS.ALERT },
+    { value: 4, label: "CRITICAL 4.00", color: STATUS_COLORS.CRITICAL },
+    { value: 6.4, label: "DANGER 6.40", color: STATUS_COLORS.DANGER }
+];
+
+const byId = id => document.getElementById(id);
+
+function setText(id, value) {
+    const node = byId(id);
+    if (node) node.textContent = value;
+}
+
+// ---------------------------------------------------------------
+// READINGS
+// A "reading" is { id, ts (ms since epoch), level (m) }.
+// ---------------------------------------------------------------
+function toReading(row) {
+
+    if (!row || row.water_level === null || row.water_level === undefined || row.water_level === "") {
+        return null;
+    }
+
+    const level = Number(row.water_level);
+    const ts = parseSupabaseTimestamp(row.created_at).getTime();
+
+    if (!Number.isFinite(level) || !Number.isFinite(ts)) {
+        return null;
+    }
+
+    return { id: row.id ?? null, ts, level };
+}
+
+let liveReading = null;        // newest reading in the database
+let selectedReading = null;    // reading picked on the chart (historical mode) or null
+
+// ---------------------------------------------------------------
+// UNIFIED DASHBOARD
+// ---------------------------------------------------------------
+function updateWaterDisplay(level) {
 
     const status = getFloodStatus(level);
+    const key = status.toLowerCase();
 
-    document.getElementById("waterLevel").textContent = level.toFixed(2) + " m";
+    setText("waterLevel", level.toFixed(2) + " m");
 
-    const statusElement = document.getElementById("status");
+    ["status", "gaugeStatus"].forEach(id => {
+        const node = byId(id);
+        if (node) {
+            node.textContent = status;
+            node.className = "status-badge " + key;
+        }
+    });
 
-    statusElement.textContent = status;
-    statusElement.className = "status-badge " + status.toLowerCase();
+    const fillElement = byId("waterFill");
 
-    const fillElement = document.getElementById("waterFill");
+    if (fillElement) {
+        const fillPercent = Math.max(0, Math.min((level / GAUGE_SCALE_MAX) * 100, 100));
+        fillElement.style.height = fillPercent + "%";
+        fillElement.className = "fill " + key;
+    }
 
-    const fillPercent = Math.max(0, Math.min((level / GAUGE_SCALE_MAX) * 100, 100));
+    const root = byId("unifiedDashboard");
 
-    fillElement.style.height = fillPercent + "%";
-    fillElement.className = "fill " + status.toLowerCase();
+    if (root) {
+        root.dataset.status = key;
+    }
+}
 
-    const alertBox = document.getElementById("alertBox");
+// The warning banner always reflects the LIVE reading, even while a
+// historical point is shown in the container.
+function updateAlertBox(level) {
+
+    const alertBox = byId("alertBox");
+
+    if (!alertBox) return;
+
+    const status = getFloodStatus(level);
 
     const alertClass = {
         ALERT: "alert-warning",
@@ -37,40 +123,110 @@ function updateWaterDisplay(level){
         DANGER: "alert-danger"
     }[status];
 
-    if(alertClass){
-
+    if (alertClass) {
         alertBox.className = "alert-box " + alertClass;
         alertBox.textContent = "⚠️ Flood warning: " + status;
-
-    }
-    else{
-
+    } else {
         alertBox.className = "alert-box";
         alertBox.textContent = "";
+    }
+}
 
+function renderDashboard() {
+
+    const shown = selectedReading || liveReading;
+    const historical = Boolean(selectedReading);
+
+    const root = byId("unifiedDashboard");
+
+    if (root) {
+        root.classList.toggle("is-historical", historical);
     }
 
+    const badge = byId("modeBadge");
+
+    if (badge) {
+        badge.textContent = historical ? "SELECTED HISTORICAL READING" : "LATEST LIVE READING";
+    }
+
+    setText("statusTitle", historical ? "Selected Status" : "Current Status");
+    setText("dateTitle", historical ? "Selected Reading" : "Last Reading");
+
+    const returnBtn = byId("returnLatestBtn");
+
+    if (returnBtn) {
+        returnBtn.disabled = !historical;
+    }
+
+    if (!shown) return;
+
+    updateWaterDisplay(shown.level);
+
+    const dateText = formatMonitorDate(shown.ts);
+    const timeText = formatMonitorTime(shown.ts, true);
+
+    const dateNode = byId("date");
+
+    if (dateNode) {
+        dateNode.innerHTML =
+            `<span class="u-date-line">${dateText}</span><span class="u-date-line">${timeText}</span>`;
+    }
+
+    setText("gaugeDate", dateText);
+    setText("gaugeTime", timeText);
+}
+
+function setLiveReading(reading, createdAt) {
+
+    liveReading = reading;
+
+    updateAlertBox(reading.level);
+    noteReadingTime(createdAt);
+    renderDashboard();
+}
+
+// Called when a real data point on the chart is clicked.
+function selectReading(reading) {
+
+    selectedReading = { id: reading.id, ts: reading.ts, level: reading.level };
+
+    renderDashboard();
+
+    if (waterChartInstance) {
+        waterChartInstance.update("none");
+    }
+}
+
+// "RETURN TO LATEST READING" button.
+function returnToLatestReading() {
+
+    selectedReading = null;
+
+    renderDashboard();
+
+    if (waterChartInstance) {
+        waterChartInstance.update("none");
+    }
 }
 
 // SENSOR CONNECTION
 // Derived from how recent the newest reading is, so the card can't
-// claim "Connected" when the device has gone quiet.
+// claim "Connected" when the device has gone quiet. Always live.
 
 let lastReadingMs = null;
 
-function noteReadingTime(createdAt){
+function noteReadingTime(createdAt) {
 
     lastReadingMs = parseSupabaseTimestamp(createdAt).getTime();
 
     renderSensorConnection();
-
 }
 
-function renderSensorConnection(){
+function renderSensorConnection() {
 
-    const element = document.getElementById("sensorConnection");
+    const element = byId("sensorConnection");
 
-    if(!element || lastReadingMs === null){
+    if (!element || lastReadingMs === null) {
         return;
     }
 
@@ -81,337 +237,572 @@ function renderSensorConnection(){
     element.innerHTML = isFresh
         ? '<span class="live-dot" aria-hidden="true"></span> Connected'
         : '<span class="live-dot live-dot--off" aria-hidden="true"></span> No recent data';
-
 }
 
 setInterval(renderSensorConnection, 60 * 1000);
 
-async function getWaterReading(){
+async function getWaterReading() {
 
     const { data, error } = await supabaseClient
-    .from("water_readings")
-    .select("*")
-    .order("created_at", { ascending:false })
-    .limit(1);
-
-    if(error){
-
-        console.error("Latest reading error:", error);
-        return;
-
-    }
-
-    const latest = data[0];
-
-    if(!latest){
-
-        document.getElementById("sensorConnection").textContent = "Waiting for first reading";
-
-        return;
-
-    }
-
-    updateWaterDisplay(Number(latest.water_level));
-
-    noteReadingTime(latest.created_at);
-
-}
-
-getWaterReading();
-
-
-// LAST SMS ALERT — this is deliberately separate from the current sensor value.
-// The ESP32 creates one SMS payload, then stores that same text in alert_events.
-// We parse that saved payload so the dashboard shows the exact alert reading/time,
-// even when newer water_readings rows arrive a few seconds later.
-const LAST_ALERT_QUERY_LIMIT = 50;
-let latestSmsAlertKey = null;
-let latestSmsAlertTimeMs = -Infinity;
-let latestSmsAlertInsertedMs = -Infinity;
-
-function normalizeDashboardSmsAlert(event) {
-
-    const message = String(event?.message ?? "");
-    const waterMatch = message.match(/\bWater:\s*(-?\d+(?:\.\d+)?)\s*m\b/i);
-    const statusMatch = message.match(/\bFLOOD(?:\s+UPDATE)?\s*:?\s*(ALERT|CRITICAL|DANGER)\b/i);
-    const timeMatch = message.match(/\bTime:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\b/i);
-
-    if (!waterMatch || !statusMatch || !event?.created_at) return null;
-
-    const level = Number(waterMatch[1]);
-    if (!Number.isFinite(level)) return null;
-
-    // SMS timestamps are generated in Philippines local time (UTC+08:00).
-    // If the device clock was not synchronized, fall back to Supabase created_at.
-    let alertTimestamp = event.created_at;
-    if (timeMatch) {
-        const candidate = `${timeMatch[1]}T${timeMatch[2]}+08:00`;
-        if (!Number.isNaN(new Date(candidate).getTime())) alertTimestamp = candidate;
-    }
-
-    return {
-        key: String(event.id ?? `${event.device_id || "device"}|${event.created_at}|${message}`),
-        level,
-        status: statusMatch[1].toUpperCase(),
-        timestamp: alertTimestamp,
-        timestampMs: parseSupabaseTimestamp(alertTimestamp).getTime(),
-        insertedMs: parseSupabaseTimestamp(event.created_at).getTime(),
-        deviceId: event.device_id || "-"
-    };
-}
-
-function renderLatestSmsAlert(alert) {
-
-    const levelElement = document.getElementById("lastSmsAlertLevel");
-    const statusElement = document.getElementById("lastSmsAlertStatus");
-    const timeElement = document.getElementById("lastSmsAlertTime");
-    if (!levelElement || !statusElement || !timeElement) return;
-
-    if (!alert) {
-        levelElement.textContent = "No SMS alert yet";
-        statusElement.textContent = "No alert recorded";
-        statusElement.className = "status-badge unknown";
-        timeElement.textContent = "—";
-        return;
-    }
-
-    levelElement.textContent = `${alert.level.toFixed(2)} m`;
-    statusElement.textContent = alert.status;
-    statusElement.className = `status-badge ${alert.status.toLowerCase()}`;
-    timeElement.textContent = Number.isFinite(alert.timestampMs)
-        ? parseSupabaseTimestamp(alert.timestamp).toLocaleString()
-        : "Time unavailable";
-}
-
-function acceptLatestSmsAlert(alert) {
-
-    if (!alert) return;
-
-    const isNewer = alert.timestampMs > latestSmsAlertTimeMs ||
-        (alert.timestampMs === latestSmsAlertTimeMs && alert.insertedMs > latestSmsAlertInsertedMs);
-
-    if (!isNewer && alert.key !== latestSmsAlertKey) return;
-    if (alert.key === latestSmsAlertKey) return;
-
-    latestSmsAlertKey = alert.key;
-    latestSmsAlertTimeMs = alert.timestampMs;
-    latestSmsAlertInsertedMs = alert.insertedMs;
-    renderLatestSmsAlert(alert);
-}
-
-async function loadLatestSmsAlert() {
-
-    const { data, error } = await supabaseClient
-        .from("alert_events")
+        .from("water_readings")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(LAST_ALERT_QUERY_LIMIT);
+        .limit(1);
 
     if (error) {
-        console.warn("Could not load the last SMS alert from alert_events:", error);
-        // Keep a valid alert already received over Realtime visible if a later
-        // refresh fails; only show the access warning when no alert is known.
-        if (latestSmsAlertKey === null) {
-            const levelElement = document.getElementById("lastSmsAlertLevel");
-            const statusElement = document.getElementById("lastSmsAlertStatus");
-            const timeElement = document.getElementById("lastSmsAlertTime");
-            if (levelElement) levelElement.textContent = "Unavailable";
-            if (statusElement) {
-                statusElement.textContent = "Check Supabase access";
-                statusElement.className = "status-badge unknown";
-            }
-            if (timeElement) timeElement.textContent = "Could not read alert_events";
-        }
+        console.error("Latest reading error:", error);
         return;
     }
 
-    const alerts = (data || [])
-        .map(normalizeDashboardSmsAlert)
-        .filter(Boolean)
-        .sort((a, b) => b.timestampMs - a.timestampMs || b.insertedMs - a.insertedMs);
+    const latestRow = data[0];
 
-    if (!alerts.length) {
-        if (latestSmsAlertKey === null) renderLatestSmsAlert(null);
+    if (!latestRow) {
+        const sensor = byId("sensorConnection");
+        if (sensor) sensor.textContent = "Waiting for first reading";
         return;
     }
 
-    // Accept the newest alert by the timestamp embedded in the message, not
-    // by the later database insert time alone. Never replace a newer Realtime
-    // alert with a stale result from an overlapping initial query.
-    acceptLatestSmsAlert(alerts[0]);
+    const reading = toReading(latestRow);
+
+    if (reading) {
+        setLiveReading(reading, latestRow.created_at);
+    }
 }
 
-function handleDashboardSmsAlertInsert(payload) {
-    acceptLatestSmsAlert(normalizeDashboardSmsAlert(payload && payload.new));
-}
-
-loadLatestSmsAlert();
-
-// The chart displays the full dataset for whichever period is
-// currently loaded, or — while the zoom slider below it is being
-// used — a windowed view around one specific reading. It defaults
-// to today's data; admin/moderator users (gated in nav.js) also
-// get a custom date-range picker to load a different range on
-// demand.
-
+// ---------------------------------------------------------------
+// WATER-LEVEL HISTORY CHART
+// X axis = time of day (Asia/Manila) on a linear millisecond scale, so a
+// selected day always spans 12:00 AM to 12:00 AM and real gaps stay gaps.
+// Only actual readings are plotted: no smoothing, no interpolation, and
+// the line is broken wherever two readings are further apart than
+// CHART_GAP_BREAK_MS.
+// ---------------------------------------------------------------
 let waterChartInstance = null;
 
-// Full underlying dataset for whichever period is currently loaded.
-// `fullLabels`/`fullLevels` stay parallel to each other;
-// `fullTimestamps` is the raw time for each point.
-let fullLabels = [];
-let fullLevels = [];
-let fullTimestamps = [];
-
-// Caps how many points we keep in memory for a live (still-growing)
-// period, so a page left open for a long time doesn't grow
-// unboundedly.
-const CHART_MAX_LIVE_POINTS = 5000;
-
-// Caps how many rows a single period query pulls back. We always
-// fetch the most recent CHART_QUERY_LIMIT rows within the period
-// (descending, then reversed to chronological order), so a period
-// with more data than the cap still shows its most recent portion
-// rather than silently getting cut off at the oldest end.
-const CHART_QUERY_LIMIT = 5000;
-
-const CHART_Y_MAX = 9; // top of the vertical range, meters
+let chartReadings = [];          // loaded readings, chronological
+let chartPoints = [];       // chart data: readings plus null "gap" markers
+let readingPointIndex = []; // chartReadings[i] -> index inside chartPoints
+let pointBaseRadius = 3;
+let chartLoadToken = 0;
 
 // Current range state.
 let chartPeriodIsLive = true;      // true = range includes "now" and keeps growing
 let chartRangeStartMs = 0;
-let chartRangeEndMs = 0;           // only meaningful for non-live (completed) ranges
+let chartRangeEndMs = 0;
 
-// Index into fullLabels/fullLevels of the reading currently selected
-// via the zoom slider under the chart, and whether the chart is
-// currently showing a zoomed-in window around that reading (rather
-// than the full period). -1 / false = no selection, full range shown.
+// Zoom slider state (index into `readings`).
 let zoomedPointIndex = -1;
 let isZoomedView = false;
 
-// How many readings are shown on each side of the selected point
-// when zoomed in — wide enough to make individual readings (and
-// their line-chart points) easy to read instead of blurring
-// together like they do across a whole day/week/month.
-const CHART_ZOOM_WINDOW_RADIUS = 20;
+// Axis formatting state read by the tick callback.
+let axisStepMs = 3 * 60 * 60 * 1000;
+let axisSpanMs = DAY_MS;
 
-// Default range shown on load: today, start of day up to right now,
-// still growing as new readings arrive. (Custom ranges bypass this —
-// see selectCustomChartRange — this is only used for the initial
-// "today" view.)
-function getTodayRange(){
+// Default range: today in Manila, 12:00 AM to 12:00 AM (next day).
+function getTodayRange() {
 
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const start = new Date(monitorDayStartMs(monitorTodayString()));
+    const end = new Date(start.getTime() + DAY_MS);
 
-    return { start, end: now, isLive:true };
-
+    return { start, end, isLive: true };
 }
 
-// Pushes the current view onto the already-rendered chart: the full
-// dataset normally, or — while the zoom slider is active — just the
-// window of readings around the selected point.
-function applyChartData(){
+function initChartDateInputs() {
 
-    if(!waterChartInstance){
+    const today = monitorTodayString();
+    const startInput = byId("chartCustomStart");
+    const endInput = byId("chartCustomEnd");
+
+    if (startInput && !startInput.value) startInput.value = today;
+    if (endInput && !endInput.value) endInput.value = today;
+}
+
+const AXIS_STEPS_MS = [
+    60e3, 5 * 60e3, 10 * 60e3, 15 * 60e3, 30 * 60e3,
+    3600e3, 2 * 3600e3, 3 * 3600e3, 6 * 3600e3, 12 * 3600e3,
+    DAY_MS, 2 * DAY_MS, 7 * DAY_MS, 14 * DAY_MS, 30 * DAY_MS
+];
+
+function pickAxisStep(spanMs) {
+
+    for (const step of AXIS_STEPS_MS) {
+        if (spanMs / step <= 8) return step;
+    }
+
+    return AXIS_STEPS_MS[AXIS_STEPS_MS.length - 1];
+}
+
+function applyAxis(minMs, maxMs) {
+
+    const x = waterChartInstance.options.scales.x;
+
+    axisSpanMs = maxMs - minMs;
+    axisStepMs = pickAxisStep(axisSpanMs);
+
+    x.min = minMs;
+    x.max = maxMs;
+    x.ticks.stepSize = axisStepMs;
+}
+
+function axisTickLabel(value) {
+
+    if (axisStepMs >= DAY_MS) {
+        return formatMonitorShortDate(value);
+    }
+
+    const time = formatMonitorTime(value, axisStepMs < 60e3);
+
+    return axisSpanMs > DAY_MS ? [formatMonitorShortDate(value), time] : time;
+}
+
+function buildPoints(list) {
+
+    const points = [];
+    const index = [];
+    let previous = null;
+
+    for (const reading of list) {
+
+        // A null point breaks the line across a real data gap.
+        if (previous && reading.ts - previous.ts > CHART_GAP_BREAK_MS) {
+            points.push({ x: previous.ts + (reading.ts - previous.ts) / 2, y: null });
+        }
+
+        points.push({ x: reading.ts, y: reading.level, r: reading });
+        index.push(points.length - 1);
+        previous = reading;
+    }
+
+    return { points, index };
+}
+
+function chartYMax(list) {
+
+    let highest = 0;
+
+    for (const reading of list) {
+        if (reading.level > highest) highest = reading.level;
+    }
+
+    return Math.max(CHART_Y_MAX, Math.ceil(highest + 0.2));
+}
+
+function baseRadiusFor(count) {
+    return count <= 300 ? 3 : count <= 2000 ? 2 : 1;
+}
+
+// Dashed guide lines at the exact status thresholds.
+const thresholdLinesPlugin = {
+    id: "thresholdLines",
+    beforeDatasetsDraw(chart) {
+        const { ctx, chartArea, scales } = chart;
+        if (!chartArea || !scales.y) return;
+
+        ctx.save();
+        ctx.font = "600 10px 'IBM Plex Mono', monospace";
+        ctx.textAlign = "right";
+        ctx.textBaseline = "bottom";
+
+        CHART_THRESHOLDS.forEach(t => {
+            const y = scales.y.getPixelForValue(t.value);
+            if (y < chartArea.top || y > chartArea.bottom) return;
+
+            ctx.strokeStyle = t.color;
+            ctx.globalAlpha = 0.45;
+            ctx.setLineDash([5, 5]);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(chartArea.left, y);
+            ctx.lineTo(chartArea.right, y);
+            ctx.stroke();
+
+            ctx.globalAlpha = 0.9;
+            ctx.setLineDash([]);
+            ctx.fillStyle = t.color;
+            ctx.fillText(t.label, chartArea.right - 4, y - 2);
+        });
+
+        ctx.restore();
+    }
+};
+
+// Ring + filled dot drawn on top of everything for the selected reading.
+const selectedMarkerPlugin = {
+    id: "selectedMarker",
+    afterDatasetsDraw(chart) {
+        if (!selectedReading) return;
+
+        const { ctx, chartArea, scales } = chart;
+        if (!chartArea || !scales.x || !scales.y) return;
+
+        const px = scales.x.getPixelForValue(selectedReading.ts);
+        const py = scales.y.getPixelForValue(selectedReading.level);
+
+        if (px < chartArea.left || px > chartArea.right || py < chartArea.top || py > chartArea.bottom) return;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(px, py, 12, 0, Math.PI * 2);
+        ctx.strokeStyle = "rgba(255,255,255,0.35)";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(px, py, 7, 0, Math.PI * 2);
+        ctx.fillStyle = STATUS_COLORS[getFloodStatus(selectedReading.level)];
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = "#ffffff";
+        ctx.stroke();
+        ctx.restore();
+    }
+};
+
+function ensureChart() {
+
+    if (waterChartInstance) return waterChartInstance;
+
+    const ctx = byId("waterChart");
+
+    if (!ctx || typeof Chart === "undefined") return null;
+
+    const tickColor = "#9db7c6";
+    const gridColor = "rgba(140, 190, 215, 0.12)";
+
+    waterChartInstance = new Chart(ctx, {
+
+        type: "line",
+
+        data: {
+            datasets: [{
+                label: "Water level (m)",
+                data: [],
+                borderColor: "#4cc3e8",
+                backgroundColor: "rgba(76, 195, 232, 0.12)",
+                fill: true,
+                borderWidth: 2,
+                tension: 0,
+                spanGaps: false,
+                pointRadius: () => pointBaseRadius,
+                pointHoverRadius: () => pointBaseRadius + 3,
+                pointHitRadius: 10,
+                pointBorderWidth: 0,
+                pointBackgroundColor: c => (c.raw && c.raw.y !== null && c.raw.y !== undefined)
+                    ? STATUS_COLORS[getFloodStatus(c.raw.y)]
+                    : "transparent"
+            }]
+        },
+
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            animation: false,
+            interaction: { mode: "nearest", intersect: true },
+
+            // Only a click that lands on an actual recorded point selects it.
+            onClick(evt, _active, chart) {
+                const hits = chart.getElementsAtEventForMode(evt, "nearest", { intersect: true }, true);
+                if (!hits.length) return;
+                const point = chart.data.datasets[0].data[hits[0].index];
+                if (point && point.r) selectReading(point.r);
+            },
+
+            onHover(evt, active, chart) {
+                chart.canvas.style.cursor = active.length ? "pointer" : "default";
+            },
+
+            plugins: {
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        title: items => items.length ? formatMonitorDateTime(items[0].raw.x, true) : "",
+                        label: item => `${item.raw.y.toFixed(2)} m — ${getFloodStatus(item.raw.y)}`,
+                        footer: () => "Click to show on dashboard"
+                    }
+                }
+            },
+
+            scales: {
+                x: {
+                    type: "linear",
+                    min: 0,
+                    max: 1,
+                    grid: { color: gridColor },
+                    ticks: {
+                        color: tickColor,
+                        maxRotation: 0,
+                        autoSkip: true,
+                        includeBounds: true,
+                        stepSize: axisStepMs,
+                        callback: value => axisTickLabel(value)
+                    },
+                    title: { display: true, text: "Time of day (Asia/Manila)", color: tickColor }
+                },
+                y: {
+                    min: 0,
+                    max: CHART_Y_MAX,
+                    grid: { color: gridColor },
+                    ticks: { color: tickColor },
+                    title: { display: true, text: "Water level (m)", color: tickColor }
+                }
+            }
+        },
+
+        plugins: [thresholdLinesPlugin, selectedMarkerPlugin]
+    });
+
+    return waterChartInstance;
+}
+
+function setChartMeta(text) { setText("chartMeta", text); }
+
+function rangeLabel() {
+
+    const first = formatMonitorDate(chartRangeStartMs);
+    const last = formatMonitorDate(chartRangeEndMs - 1);
+
+    return first === last ? first : `${first} – ${last}`;
+}
+
+function updateChartStatusText(truncated) {
+
+    const empty = byId("chartEmpty");
+
+    if (chartReadings.length === 0) {
+        if (empty) {
+            empty.textContent = `No readings recorded for ${rangeLabel()}.`;
+            empty.hidden = false;
+        }
+        setChartMeta(`0 readings · ${rangeLabel()}`);
         return;
     }
 
-    if (isZoomedView && fullLabels.length > 0) {
-        renderZoomWindow(zoomedPointIndex);
+    if (empty) empty.hidden = true;
+
+    const n = chartReadings.length.toLocaleString();
+    let text = `${n} reading${chartReadings.length === 1 ? "" : "s"} · ${rangeLabel()} · click a data point to show it on the dashboard`;
+
+    if (truncated) {
+        text = `Showing the first ${n} readings of this range. Choose a shorter range to see the rest.`;
+    }
+
+    setChartMeta(text);
+}
+
+// Loads every reading in [range.start, range.end), oldest first, paging
+// past Supabase's per-request row cap.
+async function fetchReadingsBetween(startMs, endMs) {
+
+    const rows = [];
+    let truncated = false;
+
+    for (let from = 0; ; from += CHART_PAGE_SIZE) {
+
+        if (from >= CHART_QUERY_LIMIT) {
+            truncated = true;
+            break;
+        }
+
+        const { data, error } = await supabaseClient
+            .from("water_readings")
+            .select("*")
+            .gte("created_at", new Date(startMs).toISOString())
+            .lt("created_at", new Date(endMs).toISOString())
+            .order("created_at", { ascending: true })
+            .order("id", { ascending: true })
+            .range(from, from + CHART_PAGE_SIZE - 1);
+
+        if (error) {
+            return { error };
+        }
+
+        rows.push(...data);
+
+        if (data.length < CHART_PAGE_SIZE) break;
+    }
+
+    return { rows, truncated };
+}
+
+// "Apply" button. The date inputs are Manila calendar dates; the range is
+// the whole of each day (00:00:00 up to, not including, the next midnight),
+// so both the start and end days are fully included.
+function selectCustomChartRange() {
+
+    const startInput = byId("chartCustomStart");
+    const endInput = byId("chartCustomEnd");
+
+    if (!startInput || !endInput || !startInput.value || !endInput.value) {
+        alert("Please choose both a start and end date.");
         return;
     }
 
-    waterChartInstance.data.labels = fullLabels;
-    waterChartInstance.data.datasets[0].data = fullLevels;
+    const startMs = monitorDayStartMs(startInput.value);
+    const endMs = monitorDayStartMs(endInput.value) + DAY_MS;
 
-    waterChartInstance.update();
+    if (startMs >= endMs) {
+        alert("Start date must be on or before the end date.");
+        return;
+    }
 
+    loadWaterChart({
+        start: new Date(startMs),
+        end: new Date(endMs),
+        isLive: endMs > Date.now()
+    });
+}
+
+async function loadWaterChart(range) {
+
+    range = range || getTodayRange();
+
+    const chart = ensureChart();
+
+    if (!chart) return;
+
+    const token = ++chartLoadToken;
+
+    chartRangeStartMs = range.start.getTime();
+    chartRangeEndMs = range.end.getTime();
+    chartPeriodIsLive = range.isLive;
+
+    setChartMeta("Loading readings…");
+
+    const result = await fetchReadingsBetween(chartRangeStartMs, chartRangeEndMs);
+
+    if (token !== chartLoadToken) return;   // a newer Apply superseded this one
+
+    if (result.error) {
+        console.error("Chart Error:", result.error);
+        setChartMeta("Could not load readings. Press Apply to try again.");
+        return;
+    }
+
+    chartReadings = result.rows.map(toReading).filter(Boolean);
+
+    const built = buildPoints(chartReadings);
+    chartPoints = built.points;
+    readingPointIndex = built.index;
+
+    isZoomedView = false;
+    zoomedPointIndex = -1;
+    pointBaseRadius = baseRadiusFor(chartReadings.length);
+
+    chart.data.datasets[0].data = chartPoints;
+    chart.options.scales.y.max = chartYMax(chartReadings);
+    applyAxis(chartRangeStartMs, chartRangeEndMs);
+    chart.update("none");
+
+    updateChartStatusText(result.truncated);
     updateZoomSliderUI();
-
 }
 
-// Renders just a window of CHART_ZOOM_WINDOW_RADIUS readings on
-// either side of `index`, and highlights that exact reading via
-// Chart.js's tooltip API — this is the "zoom in" effect the slider
-// drives: sliding to a moment in time spreads its nearby readings
-// out so each one is individually visible.
+// Adds a freshly inserted reading to the chart if it belongs to the
+// range currently shown.
+function appendReadingToChart(reading) {
+
+    if (!waterChartInstance) return;
+
+    const inRange = reading.ts >= chartRangeStartMs &&
+        (chartPeriodIsLive || reading.ts < chartRangeEndMs);
+
+    if (!inRange) return;
+
+    const last = chartReadings[chartReadings.length - 1];
+
+    if (last && last.id === reading.id && last.ts === reading.ts) return;
+
+    if (last && reading.ts - last.ts > CHART_GAP_BREAK_MS) {
+        chartPoints.push({ x: last.ts + (reading.ts - last.ts) / 2, y: null });
+    }
+
+    chartReadings.push(reading);
+    chartPoints.push({ x: reading.ts, y: reading.level, r: reading });
+    readingPointIndex.push(chartPoints.length - 1);
+
+    pointBaseRadius = baseRadiusFor(chartReadings.length);
+
+    const needed = chartYMax([reading]);
+
+    if (needed > waterChartInstance.options.scales.y.max) {
+        waterChartInstance.options.scales.y.max = needed;
+    }
+
+    waterChartInstance.update("none");
+
+    updateChartStatusText(false);
+    updateZoomSliderUI();
+}
+
+// ---------------------------------------------------------------
+// ZOOM SLIDER (unchanged behaviour: slide to a reading to spread its
+// neighbours out; "Show Full Range" backs out). It only zooms and
+// highlights a tooltip; it does not change the dashboard. Clicking the
+// point does.
+// ---------------------------------------------------------------
 function renderZoomWindow(index) {
 
-    if (!waterChartInstance || fullLabels.length === 0) {
-        return;
+    if (!waterChartInstance || chartReadings.length === 0) return;
+
+    zoomedPointIndex = Math.max(0, Math.min(index, chartReadings.length - 1));
+
+    const first = Math.max(0, zoomedPointIndex - CHART_ZOOM_WINDOW_RADIUS);
+    const last = Math.min(chartReadings.length - 1, zoomedPointIndex + CHART_ZOOM_WINDOW_RADIUS);
+
+    let minMs = chartReadings[first].ts;
+    let maxMs = chartReadings[last].ts;
+    const pad = Math.max((maxMs - minMs) * 0.05, 30e3);
+
+    applyAxis(minMs - pad, maxMs + pad);
+    waterChartInstance.update("none");
+
+    const pointIndex = readingPointIndex[zoomedPointIndex];
+    const element = waterChartInstance.getDatasetMeta(0).data[pointIndex];
+
+    if (element) {
+        const active = [{ datasetIndex: 0, index: pointIndex }];
+        waterChartInstance.setActiveElements(active);
+        waterChartInstance.tooltip.setActiveElements(active, { x: element.x, y: element.y });
+        waterChartInstance.update("none");
     }
-
-    zoomedPointIndex = Math.max(0, Math.min(index, fullLabels.length - 1));
-
-    const start = Math.max(0, zoomedPointIndex - CHART_ZOOM_WINDOW_RADIUS);
-    const end = Math.min(fullLabels.length, zoomedPointIndex + CHART_ZOOM_WINDOW_RADIUS + 1);
-
-    waterChartInstance.data.labels = fullLabels.slice(start, end);
-    waterChartInstance.data.datasets[0].data = fullLevels.slice(start, end);
-
-    waterChartInstance.update();
-
-    const indexInWindow = zoomedPointIndex - start;
-
-    waterChartInstance.setActiveElements([
-        { datasetIndex: 0, index: indexInWindow }
-    ]);
-
-    waterChartInstance.tooltip.setActiveElements(
-        [{ datasetIndex: 0, index: indexInWindow }],
-        { x: 0, y: 0 }
-    );
-
-    waterChartInstance.update();
 
     updateZoomSliderUI();
-
 }
 
-// Called on every "input" event as the user drags the slider.
 function onChartZoomSlide(value) {
 
-    if (fullLabels.length === 0) {
-        return;
-    }
+    if (chartReadings.length === 0) return;
 
     isZoomedView = true;
     renderZoomWindow(Number(value));
-
 }
 
-// Called by the "Show Full Range" button to back out of the zoomed
-// window and see the whole loaded period again.
 function resetChartZoom() {
+
+    if (!waterChartInstance) return;
 
     isZoomedView = false;
 
-    waterChartInstance.data.labels = fullLabels;
-    waterChartInstance.data.datasets[0].data = fullLevels;
-    waterChartInstance.update();
+    applyAxis(chartRangeStartMs, chartRangeEndMs);
+    waterChartInstance.setActiveElements([]);
+    waterChartInstance.tooltip.setActiveElements([], { x: 0, y: 0 });
+    waterChartInstance.update("none");
 
     updateZoomSliderUI();
-
 }
 
-// Keeps the slider's range/handle position and the label under it
-// ("<time> — <level> m" while zoomed, "Showing full range"
-// otherwise) in sync with the current state.
 function updateZoomSliderUI() {
 
-    const slider = document.getElementById("chartZoomSlider");
-    const label = document.getElementById("chartZoomLabel");
-    const resetBtn = document.getElementById("chartZoomReset");
+    const slider = byId("chartZoomSlider");
+    const label = byId("chartZoomLabel");
+    const resetBtn = byId("chartZoomReset");
 
-    if (!slider || !label) {
-        return;
-    }
+    if (!slider || !label) return;
 
-    const maxIndex = Math.max(0, fullLabels.length - 1);
+    const maxIndex = Math.max(0, chartReadings.length - 1);
     slider.max = String(maxIndex);
 
-    if (fullLabels.length === 0) {
+    if (chartReadings.length === 0) {
         slider.value = "0";
         slider.disabled = true;
         label.textContent = "No data";
@@ -422,461 +813,184 @@ function updateZoomSliderUI() {
     slider.disabled = false;
 
     if (isZoomedView) {
+        const r = chartReadings[zoomedPointIndex];
         slider.value = String(zoomedPointIndex);
         label.textContent =
-            `${fullLabels[zoomedPointIndex]} — ${fullLevels[zoomedPointIndex]} m ` +
-            `(${zoomedPointIndex + 1} of ${fullLabels.length})`;
+            `${formatMonitorDateTime(r.ts, true)} — ${r.level.toFixed(2)} m ` +
+            `(${zoomedPointIndex + 1} of ${chartReadings.length})`;
         if (resetBtn) resetBtn.disabled = false;
     } else {
         slider.value = String(maxIndex);
-        label.textContent = `Showing full range (${fullLabels.length} readings)`;
+        label.textContent = `Showing full range (${chartReadings.length} readings)`;
         if (resetBtn) resetBtn.disabled = true;
     }
-
 }
 
-// Called by the "Apply" button next to the custom date-range
-// inputs. Reads two plain <input type="date"> values, treats them
-// as local calendar dates (not UTC — a date input's value has no
-// time zone of its own), and loads that range end-to-end inclusive
-// of the chosen end date. If the end date is today or in the
-// future, the range is treated as live and keeps growing with new
-// readings; otherwise it's a fixed, completed range.
-function selectCustomChartRange(){
+// ---------------------------------------------------------------
+// SYSTEM-WIDE STATISTICS (never affected by a historical selection)
+// ---------------------------------------------------------------
+async function loadStatistics() {
 
-    const startInput = document.getElementById("chartCustomStart");
-    const endInput = document.getElementById("chartCustomEnd");
+    // Total readings — count only, doesn't download any rows.
+    const { count, error: countError } = await supabaseClient
+        .from("water_readings")
+        .select("*", { count: "exact", head: true });
 
-    if(!startInput || !endInput || !startInput.value || !endInput.value){
-        alert("Please choose both a start and end date.");
+    if (countError) {
+        console.log(countError);
         return;
     }
 
-    const [startYear, startMonth, startDay] = startInput.value.split("-").map(Number);
-    const [endYear, endMonth, endDay] = endInput.value.split("-").map(Number);
+    setText("totalReadings", (count || 0).toLocaleString());
 
-    const start = new Date(startYear, startMonth - 1, startDay);
-
-    // Upper bound is exclusive — the day AFTER the chosen end date —
-    // so the selected end date's readings are fully included.
-    const end = new Date(endYear, endMonth - 1, endDay + 1);
-
-    if(start >= end){
-        alert("Start date must be before the end date.");
+    if (!count) {
+        console.log("No statistics available");
         return;
     }
 
-    loadWaterChart({ start, end, isLive: end.getTime() > Date.now() });
+    // Highest — sort descending, take 1 row instead of the whole table.
+    const { data: highestRow, error: highestError } = await supabaseClient
+        .from("water_readings")
+        .select("water_level")
+        .order("water_level", { ascending: false })
+        .limit(1)
+        .single();
 
+    if (highestError) {
+        console.log(highestError);
+    } else {
+        setText("highestLevel", Number(highestRow.water_level).toFixed(2) + " m");
+    }
+
+    // Lowest — same idea, ascending.
+    const { data: lowestRow, error: lowestError } = await supabaseClient
+        .from("water_readings")
+        .select("water_level")
+        .order("water_level", { ascending: true })
+        .limit(1)
+        .single();
+
+    if (lowestError) {
+        console.log(lowestError);
+    } else {
+        setText("lowestLevel", Number(lowestRow.water_level).toFixed(2) + " m");
+    }
 }
 
-async function loadWaterChart(range){
+// ---------------------------------------------------------------
+// LAST SMS ALERT
+// UNVERIFIED: reads the newest row of public.sms_queue. The column names
+// below (water_level / level / reading, sent_at / created_at) are a best
+// guess because sms_queue's schema wasn't provided. If your live page
+// already has its own Last SMS Alert code, keep that and delete this
+// block and the Last SMS tile's ids. Does nothing if #smsLevel is absent.
+// ---------------------------------------------------------------
+function firstNumber(...values) {
 
-range = range || getTodayRange();
-
-chartRangeStartMs = range.start.getTime();
-chartRangeEndMs = range.end.getTime();
-chartPeriodIsLive = range.isLive;
-
-// Fetch the most recent CHART_QUERY_LIMIT readings within the
-// period (descending, then reversed to chronological order) so a
-// period with more data than the cap still shows its most recent
-// portion instead of getting cut off at the oldest end.
-
-let query = supabaseClient
-    .from("water_readings")
-    .select("*")
-    .gte("created_at", range.start.toISOString())
-    .order("created_at", { ascending:false })
-    .limit(CHART_QUERY_LIMIT);
-
-if(!range.isLive){
-    query = query.lt("created_at", range.end.toISOString());
-}
-
-const { data, error } = await query;
-
-if(error){
-
-console.log("Chart Error:", error);
-return;
-
-}
-
-const chronological = data.slice().reverse();
-
-
-// Full dataset for the currently loaded period.
-
-fullLabels = chronological.map(item => parseSupabaseTimestamp(item.created_at).toLocaleString());
-
-fullLevels = chronological.map(item => item.water_level);
-
-fullTimestamps = chronological.map(item => parseSupabaseTimestamp(item.created_at).getTime());
-
-
-// Create the chart the first time; on later period switches, just
-// reuse the existing instance.
-
-if(!waterChartInstance){
-
-    const ctx = document.getElementById("waterChart");
-
-    waterChartInstance = new Chart(ctx, {
-
-        type:"line",
-
-        data:{
-
-            labels: [],
-
-            datasets:[{
-
-                label:"Water level (m)",
-
-                data: [],
-
-                borderColor:"#4cc3e8",
-
-                backgroundColor:"rgba(76, 195, 232, 0.14)",
-
-                fill:true,
-
-                borderWidth:2.5,
-
-                tension:0.25,
-
-                pointRadius:0,
-
-                pointHoverRadius:5,
-
-                pointHitRadius:12
-
-            }]
-
-        },
-
-        options:{
-
-            responsive:true,
-
-            maintainAspectRatio:false,
-
-            interaction:{ mode:"index", intersect:false },
-
-            plugins:{ legend:{ display:false } },
-
-            scales:{
-
-                x:{
-
-                    grid:{ display:false },
-
-                    ticks:{
-
-                        maxTicksLimit:6,
-
-                        maxRotation:0,
-
-                        autoSkip:true,
-
-                        // Two-line labels (date over time) so they fit on a phone.
-                        callback:function(value){
-                            return String(this.getLabelForValue(value)).split(", ");
-                        }
-
-                    }
-
-                },
-
-                y:{
-
-                    min: 0,
-
-                    max: CHART_Y_MAX,
-
-                    title:{
-
-                        display:true,
-
-                        text:"Meters"
-
-                    }
-
-                }
-
-            }
-
+    for (const v of values) {
+        if (v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v))) {
+            return Number(v);
         }
-
-    });
-
-}
-
-
-// A freshly loaded period always starts showing its full range;
-// the zoom slider defaults to the latest reading.
-isZoomedView = false;
-
-applyChartData();
-
-
-}
-
-
-loadWaterChart();
-
-// Pushes a freshly-inserted reading straight into the already-rendered
-// chart, instead of waiting for a full page reload. Only applies it
-// if the reading falls within the period currently loaded — a new
-// reading today shouldn't appear while browsing "Last Month", for
-// example. Also caps memory growth for long-running live periods,
-// then re-renders the chart with the full updated dataset.
-function appendReadingToChart(row){
-
-    if(!waterChartInstance){
-
-        return;
-
     }
 
-    const timestamp = parseSupabaseTimestamp(row.created_at).getTime();
+    return null;
+}
 
-    const inRange = chartPeriodIsLive
-        ? timestamp >= chartRangeStartMs
-        : (timestamp >= chartRangeStartMs && timestamp < chartRangeEndMs);
+function renderSms(levelText, status, timeText) {
 
-    if(!inRange){
+    setText("smsLevel", levelText);
+    setText("smsTime", timeText);
+
+    const badge = byId("smsStatus");
+
+    if (badge) {
+        badge.hidden = !status;
+        badge.textContent = status || "";
+        badge.className = "status-badge " + (status ? status.toLowerCase() : "unknown");
+    }
+}
+
+async function loadLastSms() {
+
+    if (!byId("smsLevel")) return;
+
+    const { data, error } = await supabaseClient
+        .from("sms_queue")
+        .select("*")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+    if (error) {
+        console.warn("Last SMS alert not available:", error.message);
+        renderSms("—", "", "");
         return;
     }
 
-    // If a reading gets trimmed off the front once CHART_MAX_LIVE_POINTS
-    // is exceeded, shift the zoom slider's selected index down with it
-    // so it keeps pointing at the same reading rather than silently
-    // drifting to a different one.
-    const label = parseSupabaseTimestamp(row.created_at).toLocaleString();
-
-    fullLabels.push(label);
-    fullLevels.push(Number(row.water_level));
-    fullTimestamps.push(timestamp);
-
-    while(fullTimestamps.length > CHART_MAX_LIVE_POINTS){
-
-        fullTimestamps.shift();
-        fullLabels.shift();
-        fullLevels.shift();
-
-        if (zoomedPointIndex > 0) {
-            zoomedPointIndex--;
-        }
-
+    if (!data || !data.length) {
+        renderSms("No alerts yet", "", "");
+        return;
     }
 
-    applyChartData();
+    const row = data[0];
+    const level = firstNumber(row.water_level, row.level, row.reading);
+    const when = row.sent_at || row.created_at;
 
+    renderSms(
+        level === null ? "Alert sent" : level.toFixed(2) + " m",
+        level === null ? "" : getFloodStatus(level),
+        when ? formatMonitorDateTime(parseSupabaseTimestamp(when).getTime(), true) : ""
+    );
 }
 
-async function loadStatistics(){
-
-// Total readings — count only, doesn't download any rows.
-const { count, error: countError } = await supabaseClient
-
-.from("water_readings")
-
-.select("*", { count: "exact", head: true });
-
-
-if(countError){
-
-console.log(countError);
-return;
-
-}
-
-
-document.getElementById("totalReadings").textContent =
-count || 0;
-
-
-if(!count){
-
-    console.log("No statistics available");
-
-    return;
-
-}
-
-
-// Highest — sort descending, take 1 row instead of the whole table.
-
-const { data: highestRow, error: highestError } = await supabaseClient
-
-.from("water_readings")
-
-.select("water_level")
-
-.order("water_level", { ascending:false })
-
-.limit(1)
-
-.single();
-
-
-if(highestError){
-
-console.log(highestError);
-
-}
-
-else{
-
-document.getElementById("highestLevel").textContent =
-highestRow.water_level + " m";
-
-}
-
-
-// Lowest — same idea, ascending.
-
-const { data: lowestRow, error: lowestError } = await supabaseClient
-
-.from("water_readings")
-
-.select("water_level")
-
-.order("water_level", { ascending:true })
-
-.limit(1)
-
-.single();
-
-
-if(lowestError){
-
-console.log(lowestError);
-
-}
-
-else{
-
-document.getElementById("lowestLevel").textContent =
-lowestRow.water_level + " m";
-
-}
-
-
-// Latest timestamp — most recent single row.
-
-const { data: latestRow, error: latestError } = await supabaseClient
-
-.from("water_readings")
-
-.select("created_at")
-
-.order("created_at", { ascending:false })
-
-.limit(1)
-
-.single();
-
-
-if(latestError){
-
-console.log(latestError);
-
-return;
-
-}
-
-
-let date = parseSupabaseTimestamp(latestRow.created_at);
-
-
-document.getElementById("date").textContent =
-date.toLocaleString();
-
-
-}
-
-
-loadStatistics();
-
-
-
-// Statistics need four queries. A busy device could trigger them on
+// Statistics need several queries. A busy device could trigger them on
 // every insert, so refresh at most once every 15 seconds.
 let statisticsTimer = null;
 
-function scheduleStatisticsRefresh(){
+function scheduleStatisticsRefresh() {
 
-    if(statisticsTimer){
-        return;
-    }
+    if (statisticsTimer) return;
 
-    statisticsTimer = setTimeout(()=>{
-
+    statisticsTimer = setTimeout(() => {
         statisticsTimer = null;
         loadStatistics();
-
+        loadLastSms();
     }, 15000);
-
 }
+
+// ---------------------------------------------------------------
+// START-UP
+// ---------------------------------------------------------------
+initChartDateInputs();
+renderDashboard();
+getWaterReading();
+loadWaterChart();
+loadStatistics();
+loadLastSms();
 
 // REALTIME WATER LEVEL UPDATE
 
 supabaseClient
-.channel("water-updates")
+    .channel("water-updates")
+    .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "water_readings" },
+        payload => {
 
-.on(
-    "postgres_changes",
-    {
-        event:"INSERT",
-        schema:"public",
-        table:"water_readings"
-    },
+            const reading = toReading(payload.new);
 
-    (payload)=>{
+            if (reading) {
+                // While a historical point is selected the container keeps
+                // showing it; only the live record, banner and connection
+                // status move.
+                setLiveReading(reading, payload.new.created_at);
+                appendReadingToChart(reading);
+            }
 
+            // Flood alerts (SMS/email) are handled server-side by a
+            // Postgres trigger on water_readings inserts — see
+            // rls-and-alert-trigger.sql. Nothing here sends or changes them.
 
-const waterLevel =
-Number(payload.new.water_level);
-
-
-updateWaterDisplay(waterLevel);
-
-
-noteReadingTime(payload.new.created_at);
-
-
-appendReadingToChart(payload.new);
-
-
-// Flood alerts (SMS/email) are now handled server-side by a
-// Postgres trigger on water_readings inserts — see
-// rls-and-alert-trigger.sql. This keeps alerting reliable even
-// when no one has the dashboard open, and works correctly with
-// the RLS policies restricting sms_queue/email_queue writes.
-
-
-scheduleStatisticsRefresh();
-
-
-}
-
-)
-
-.on(
-    "postgres_changes",
-    {
-        event: "INSERT",
-        schema: "public",
-        table: "alert_events"
-    },
-    handleDashboardSmsAlertInsert
-)
-.subscribe((status) => {
-    if (status === "SUBSCRIBED") loadLatestSmsAlert();
-    if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-        console.warn("Dashboard Realtime subscription status:", status);
-    }
-});
+            scheduleStatisticsRefresh();
+        }
+    )
+    .subscribe();
