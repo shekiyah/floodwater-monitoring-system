@@ -342,7 +342,7 @@
         // A 60-second read is also kept as a fallback if a Realtime event is missed.
         if (typeof supabaseClient !== "undefined" && supabaseClient) {
             supabaseClient.channel("dashboard-system-status")
-                .on("postgres_changes", { event: "INSERT", schema: "public", table: "system_status" }, loadHealth)
+                .on("postgres_changes", { event: "*", schema: "public", table: "system_status" }, loadHealth)
                 .subscribe();
 
             supabaseClient.channel("dashboard-cell-location")

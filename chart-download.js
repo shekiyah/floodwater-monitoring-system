@@ -4,9 +4,7 @@
  *      -> interval = the dashboard's Custom start/end dates
  *         (#chartCustomStart / #chartCustomEnd). If they are empty, last 24 hours.
  *   2) Upload Speed & Ping chart  (canvas #telemetrySpeedChart, table system_status)
- *      -> interval = the Telemetry page's Custom start/end dates
- *         (#telemetryCustomStart / #telemetryCustomEnd). If both are empty,
- *         last 48 hours.
+ *      -> interval = last 48 hours (same as the chart on screen).
  * Clicking the button fetches that interval from Supabase, draws a white
  * off-screen chart and downloads the PNG immediately. No popup.
  *
@@ -25,6 +23,13 @@
     const e = document.getElementById('chartCustomEnd');
     const now = new Date();
     if (s && e && s.value && e.value) {
+      if (typeof monitorDayStartMs === 'function') {   // Asia/Manila whole days (supabase-config.js)
+        const mFrom = new Date(monitorDayStartMs(s.value));
+        let mTo = new Date(monitorDayStartMs(e.value) + 86400000);
+        if (mTo > now) mTo = now;
+        if (mFrom >= mTo) throw new Error('Start date must be on or before end date.');
+        return { from: mFrom, to: mTo };
+      }
       const [sy, sm, sd] = s.value.split('-').map(Number);
       const [ey, em, ed] = e.value.split('-').map(Number);
       const from = new Date(sy, sm - 1, sd);
@@ -36,40 +41,6 @@
     return { from: new Date(now - 24 * 3600e3), to: now };
   }
 
-  // Reads the Telemetry page's custom dates. Uses the same Philippine
-  // calendar-day boundaries as telemetry.js. The end date is included by
-  // querying up to (but not including) midnight of the following day.
-  // If no dates have been selected, retain the default last-48-hours view.
-  function telemetryInterval() {
-    const s = document.getElementById('telemetryCustomStart');
-    const e = document.getElementById('telemetryCustomEnd');
-    const hasStart = Boolean(s && s.value);
-    const hasEnd = Boolean(e && e.value);
-
-    if (hasStart || hasEnd) {
-      if (!hasStart || !hasEnd) {
-        throw new Error('Choose both a start and an end date before downloading.');
-      }
-
-      const from = new Date(`${s.value}T00:00:00+08:00`);
-      const endDateStart = new Date(`${e.value}T00:00:00+08:00`);
-
-      if (
-        Number.isNaN(from.getTime()) ||
-        Number.isNaN(endDateStart.getTime()) ||
-        from > endDateStart
-      ) {
-        throw new Error('The start date must be on or before the end date.');
-      }
-
-      const to = new Date(endDateStart.getTime() + 24 * 60 * 60 * 1000);
-      return { from, to };
-    }
-
-    const to = new Date();
-    return { from: new Date(to.getTime() - 48 * 3600e3), to };
-  }
-
   const CHARTS = [
     {
       canvasId: 'waterChart',
@@ -79,13 +50,14 @@
       timeCol: 'created_at',
       series: [{ col: 'water_level', label: 'Water level (m)', color: '#0b7bb5', axis: 'y', fill: true }],
       axes: { y: { text: 'Meters', position: 'left', min: 0,
-                   max: () => (typeof CHART_Y_MAX !== 'undefined' ? CHART_Y_MAX : 9) } },
+                   max: () => (typeof CHART_Y_MAX !== 'undefined' ? CHART_Y_MAX : 8) } },
       interval: dashboardInterval,
       stats: { col: 'water_level', unit: 'm' },
       theme: 'cd-blue'
     },
     {
       canvasId: 'telemetrySpeedChart',
+      slotId: 'telemetryDownloadSlot',
       title: 'Upload Speed & Ping',
       file: 'upload-speed-ping',
       table: 'system_status',
@@ -95,13 +67,20 @@
         { col: 'ping_ms', label: 'Ping (ms)', color: '#0b9fc4', axis: 'y1' }
       ],
       axes: { y: { text: 'Kbps', position: 'left' }, y1: { text: 'ms', position: 'right' } },
-      interval: telemetryInterval,
+      // The range applied on the Telemetry page (window.telemetryChartRange), else last 48 hours.
+      interval: () => {
+        const r = window.telemetryChartRange;
+        if (r && r.from && r.to) return { from: r.from, to: r.to };
+        const to = new Date(); return { from: new Date(to - 48 * 3600e3), to };
+      },
       theme: 'cd-purple'
     }
   ];
 
   const pad = n => String(n).padStart(2, '0');
-  const fmt = d => d.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const fmt = d => (typeof formatMonitorDateTime === 'function')
+    ? formatMonitorDateTime(d.getTime(), true)
+    : d.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const stampName = d => `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}`;
   const hasVal = v => v !== null && v !== undefined && v !== '' && Number.isFinite(Number(v));
   const parseTs = v => (typeof parseSupabaseTimestamp === 'function' ? parseSupabaseTimestamp(v) : new Date(v));
@@ -112,10 +91,11 @@
     const s = document.createElement('style');
     s.id = 'cdStyles';
     s.textContent = `
-      .cd-btn{background:#0f2a3a;color:#cfe8f5;border:1px solid #1f4a63;border-radius:8px;padding:8px 14px;cursor:pointer;font:inherit;font-weight:600}
+      .cd-btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;height:34px;padding:0 14px;background:#0f2a3a;color:#cfe8f5;border:1px solid #1f4a63;border-radius:8px;cursor:pointer;font:inherit;font-size:13px;font-weight:600}
       .cd-btn:hover{filter:brightness(1.25)}
       .cd-btn:disabled{opacity:.6;cursor:wait}
-      .cd-open{display:block;margin:10px auto}
+      .cd-ico{width:16px;height:16px;flex:0 0 auto;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+      .cd-open{display:flex;width:max-content;margin:10px auto}
       .cd-btn.cd-purple{background:#1b1b3a;border-color:#3a3a6e;color:#d9d3ff}
     `;
     document.head.appendChild(s);
@@ -130,7 +110,7 @@
       const { data, error } = await supabaseClient
         .from(cfg.table).select(cols)
         .gte(cfg.timeCol, from.toISOString())
-        .lt(cfg.timeCol, to.toISOString())
+        .lte(cfg.timeCol, to.toISOString())
         .order(cfg.timeCol, { ascending: true })
         .range(start, start + PAGE - 1);
       if (error) throw new Error(error.message);
@@ -164,9 +144,11 @@
   async function renderAndDownload(cfg, rows, from, to) {
     const pts = decimate(rows);
     const spanH = (to - from) / 3600e3;
+    const manila = typeof formatMonitorTime === 'function';
     const lab = t => {
-      const time = t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      return spanH <= 12 ? time : `${t.getMonth() + 1}/${t.getDate()} ${time}`;
+      const time = manila ? formatMonitorTime(t.getTime()) : t.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      if (spanH <= 12) return time;
+      return manila ? `${formatMonitorShortDate(t.getTime())} ${time}` : `${t.getMonth() + 1}/${t.getDate()} ${time}`;
     };
 
     let statsText = '';
@@ -195,7 +177,7 @@
     const chart = new Chart(canvas, {
       type: 'line',
       data: {
-        labels: pts.map(p => p.label !== undefined ? p.label : lab(p.t)),
+        labels: pts.map(p => lab(p.t)),
         datasets: cfg.series.map((s, i) => ({
           label: s.label, yAxisID: s.axis, data: pts.map(p => p.v[i]),
           borderColor: s.color, backgroundColor: s.color + '26',
@@ -232,59 +214,15 @@
 
   // ---------- one-click download ----------
   async function runDownload(cfg, btn) {
-    const label = btn.textContent;
-    const flash = (text, ms) => { btn.textContent = text; setTimeout(() => { btn.textContent = label; }, ms); };
+    const labelEl = btn.querySelector('.cd-label');
+    const label = labelEl.textContent;
+    const flash = (text, ms) => { labelEl.textContent = text; setTimeout(() => { labelEl.textContent = label; }, ms); };
     btn.disabled = true;
     try {
       const { from, to } = cfg.interval();
-      btn.textContent = 'Preparing image…';
-
-      let rows;
-
-      if (cfg.canvasId === 'telemetrySpeedChart') {
-        // Export the exact data already displayed in the Telemetry chart.
-        // This avoids a second Supabase query using potentially different
-        // date boundaries from the query that populated the visible graph.
-        const visibleChart =
-          typeof telemetrySpeedChartInstance !== 'undefined'
-            ? telemetrySpeedChartInstance
-            : null;
-
-        if (!visibleChart || !visibleChart.data || !visibleChart.data.labels?.length) {
-          throw new Error('The telemetry chart has no displayed readings to export. Apply the date range first.');
-        }
-
-        const labels = Array.from(visibleChart.data.labels);
-        const datasets = visibleChart.data.datasets || [];
-        const uploadSeries =
-          datasets.find(ds => ds.label === 'Upload (Kbps)') || datasets[0];
-        const pingSeries =
-          datasets.find(ds => ds.label === 'Ping (ms)') || datasets[1];
-
-        rows = labels.map((label, index) => {
-          const uploadValue = uploadSeries?.data?.[index];
-          const pingValue = pingSeries?.data?.[index];
-
-          return {
-            // The original display label is retained for the exported x-axis.
-            label: String(label),
-            t: from,
-            v: [
-              hasVal(uploadValue) ? Number(uploadValue) : null,
-              hasVal(pingValue) ? Number(pingValue) : null
-            ]
-          };
-        }).filter(row => row.v.some(value => value !== null));
-      } else {
-        rows = await fetchRows(cfg, from, to);
-      }
-
-      if (!rows.length) {
-        btn.disabled = false;
-        flash('No readings in the displayed chart', 3000);
-        return;
-      }
-
+      labelEl.textContent = 'Preparing image…';
+      const rows = await fetchRows(cfg, from, to);
+      if (!rows.length) { btn.disabled = false; flash('No readings in that interval', 3000); return; }
       await renderAndDownload(cfg, rows, from, to);
       btn.disabled = false; flash('✔ Downloaded', 1500);
     } catch (err) {
@@ -298,11 +236,13 @@
     const canvas = document.getElementById(cfg.canvasId);
     if (!canvas || canvas.dataset.cdMounted) return;
     canvas.dataset.cdMounted = '1';
+    const slot = cfg.slotId ? document.getElementById(cfg.slotId) : null;
     const btn = document.createElement('button');
     btn.type = 'button';
-    btn.className = `cd-btn cd-open ${cfg.theme === 'cd-purple' ? 'cd-purple' : ''}`;
-    btn.textContent = '⬇ Download Image';
+    btn.className = `cd-btn ${slot ? '' : 'cd-open'} ${cfg.theme === 'cd-purple' ? 'cd-purple' : ''}`;
+    btn.innerHTML = '<svg class="cd-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg><span class="cd-label">Download Image</span>';
     btn.onclick = () => runDownload(cfg, btn);
+    if (slot) { slot.appendChild(btn); return; }
     // chart canvas usually sits inside a sized wrapper; put the button above that wrapper
     const holder = canvas.parentElement;
     holder.parentElement.insertBefore(btn, holder);
