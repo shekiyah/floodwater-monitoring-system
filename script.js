@@ -169,7 +169,7 @@ function renderDashboard() {
 
     if (dateNode) {
         dateNode.innerHTML =
-            `<span class="u-date-line">${dateText}</span><span class="u-date-line">${timeText}</span>`;
+            `<span class="u-date-main">${timeText}</span><span class="u-date-sub">${dateText}</span>`;
     }
 
     setText("gaugeDate", dateText);
@@ -233,6 +233,13 @@ function renderSensorConnection() {
     const isFresh = (Date.now() - lastReadingMs) <= SENSOR_STALE_MINUTES * 60 * 1000;
 
     element.className = isFresh ? "connected" : "disconnected";
+
+    // Lets the CSS tint the Sensor Connection card green or red.
+    const sensorTile = element.closest(".u-tile");
+
+    if (sensorTile) {
+        sensorTile.dataset.state = isFresh ? "ok" : "bad";
+    }
 
     element.innerHTML = isFresh
         ? '<span class="live-dot" aria-hidden="true"></span> Connected'

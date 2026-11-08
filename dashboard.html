@@ -9,13 +9,24 @@
 <link rel="icon" href="favicon.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&family=Inter:wght@500;600;700&display=swap">
 <link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="dashboard-pro.css">
 <link rel="stylesheet" href="dashboard-unified.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 </head>
 <body class="dash-pro">
+<!-- Lucide icons (https://lucide.dev, ISC licence), inlined so no extra library is needed -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-shield-alert" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="M12 8v4"/><path d="M12 16h.01"/></symbol>
+    <symbol id="i-radio-tower" viewBox="0 0 24 24"><path d="M4.9 16.1C1 12.2 1 5.8 4.9 1.9"/><path d="M7.8 4.7a6.14 6.14 0 0 0-.8 7.5"/><circle cx="12" cy="9" r="2"/><path d="M16.2 4.8c2 2 2.26 5.11.8 7.47"/><path d="M19.1 1.9a9.96 9.96 0 0 1 0 14.1"/><path d="M9.5 18h5"/><path d="m8 22 4-11 4 11"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></symbol>
+    <symbol id="i-message-square" viewBox="0 0 24 24"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></symbol>
+    <symbol id="i-chart-column" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+    <symbol id="i-trending-up" viewBox="0 0 24 24"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></symbol>
+    <symbol id="i-trending-down" viewBox="0 0 24 24"><polyline points="22 17 13.5 8.5 8.5 13.5 2 7"/><polyline points="16 17 22 17 22 11"/></symbol>
+</svg>
+
 
 <a class="skip-link" href="#main">Skip to main content</a>
 
@@ -128,43 +139,56 @@
         <!-- LEFT: seven information indicators -->
         <div class="unified-info" id="readings">
 
-            <article class="u-tile u-tile--w3">
-                <div class="u-title"><span class="icon-chip icon-chip--status" aria-hidden="true">⚠️</span><span id="statusTitle">Current Status</span></div>
-                <div class="u-value"><p id="status" class="status-badge unknown">Loading...</p></div>
+            <article class="u-tile u-tile--status">
+                <span class="u-icon" aria-hidden="true"><svg class="u-svg"><use href="#i-shield-alert"/></svg></span>
+                <div class="u-title"><span id="statusTitle">Current Status</span></div>
+                <div class="u-body">
+                    <div class="u-value"><p id="status" class="status-badge unknown">Loading...</p></div>
+                </div>
             </article>
-
-            <article class="u-tile u-tile--w3">
-                <div class="u-title"><span class="icon-chip icon-chip--sensor" aria-hidden="true">📡</span><span>Sensor Connection</span></div>
-                <div class="u-value"><p id="sensorConnection" class="checking" aria-live="polite">Checking…</p></div>
+            <article class="u-tile u-tile--sensor">
+                <span class="u-icon" aria-hidden="true"><svg class="u-svg"><use href="#i-radio-tower"/></svg></span>
+                <div class="u-title"><span>Sensor Connection</span></div>
+                <div class="u-body">
+                    <div class="u-value u-value--text"><p id="sensorConnection" class="checking" aria-live="polite">Checking…</p></div>
+                </div>
             </article>
-
-            <article class="u-tile u-tile--w3">
-                <div class="u-title"><span class="icon-chip icon-chip--time" aria-hidden="true">📅</span><span id="dateTitle">Last Reading</span></div>
-                <div class="u-value"><p id="date">Loading...</p></div>
+            <article class="u-tile u-tile--time">
+                <span class="u-icon" aria-hidden="true"><svg class="u-svg"><use href="#i-clock"/></svg></span>
+                <div class="u-title"><span id="dateTitle">Last Reading</span></div>
+                <div class="u-body">
+                    <div class="u-value"><p id="date">Loading...</p></div>
+                </div>
             </article>
-
-            <article class="u-tile u-tile--w3">
-                <div class="u-title"><span class="icon-chip icon-chip--status" aria-hidden="true">✉️</span><span>Last SMS Alert</span></div>
-                <div class="u-value u-value--stack">
-                    <span id="smsLevel">—</span>
+            <article class="u-tile u-tile--sms">
+                <span class="u-icon" aria-hidden="true"><svg class="u-svg"><use href="#i-message-square"/></svg></span>
+                <div class="u-title"><span>Last SMS Alert</span></div>
+                <div class="u-body">
+                    <div class="u-value"><span id="smsLevel">—</span></div>
                     <span id="smsStatus" class="status-badge unknown" hidden></span>
                     <span id="smsTime" class="u-sub"></span>
                 </div>
             </article>
-
-            <article class="u-tile u-tile--w4">
-                <div class="u-title"><span class="icon-chip icon-chip--total" aria-hidden="true">📊</span><span>Total Readings</span></div>
-                <div class="u-value"><p id="totalReadings">0</p></div>
+            <article class="u-tile u-tile--total">
+                <span class="u-icon" aria-hidden="true"><svg class="u-svg"><use href="#i-chart-column"/></svg></span>
+                <div class="u-title"><span>Total Readings</span></div>
+                <div class="u-body">
+                    <div class="u-value"><p id="totalReadings">0</p></div>
+                </div>
             </article>
-
-            <article class="u-tile u-tile--w4">
-                <div class="u-title"><span class="icon-chip icon-chip--high" aria-hidden="true">⬆️</span><span>Highest Level</span></div>
-                <div class="u-value"><p id="highestLevel">0 m</p></div>
+            <article class="u-tile u-tile--high">
+                <span class="u-icon" aria-hidden="true"><svg class="u-svg"><use href="#i-trending-up"/></svg></span>
+                <div class="u-title"><span>Highest Level</span></div>
+                <div class="u-body">
+                    <div class="u-value"><p id="highestLevel">0 m</p></div>
+                </div>
             </article>
-
-            <article class="u-tile u-tile--w4">
-                <div class="u-title"><span class="icon-chip icon-chip--low" aria-hidden="true">⬇️</span><span>Lowest Level</span></div>
-                <div class="u-value"><p id="lowestLevel">0 m</p></div>
+            <article class="u-tile u-tile--low">
+                <span class="u-icon" aria-hidden="true"><svg class="u-svg"><use href="#i-trending-down"/></svg></span>
+                <div class="u-title"><span>Lowest Level</span></div>
+                <div class="u-body">
+                    <div class="u-value"><p id="lowestLevel">0 m</p></div>
+                </div>
             </article>
 
         </div>

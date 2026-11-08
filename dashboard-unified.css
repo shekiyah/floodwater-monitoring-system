@@ -1,8 +1,9 @@
-/* Unified dashboard container + history chart tweaks for dashboard.html.
+/* Station overview (unified dashboard), history chart tweaks and the
+   map / station-health row for dashboard.html.
    Load AFTER style.css and dashboard-pro.css:
      <link rel="stylesheet" href="dashboard-unified.css">
    Self-contained: the container does not use the .card class, so it looks the
-   same whether or not body.dash-pro is set. Status colours = the exact
+   same whether or not body.dash-pro is set. Status colours follow the exact
    thresholds in supabase-config.js (NORMAL <2, ALERT <4, CRITICAL <6.4,
    DANGER >=6.4). */
 
@@ -10,41 +11,46 @@
 
 .unified-card {
     --u-panel: #0b1e2b;
-    --u-panel2: #102a3a;
     --u-edge: rgba(125, 190, 220, 0.16);
     --u-text: #dcebf3;
     --u-muted: #8aa5b5;
     --u-status-text: #9db7c6;
+    --u-status-bg: rgba(140, 170, 185, 0.14);
+    --u-status-edge: rgba(125, 190, 220, 0.18);
     --u-glow: rgba(255, 255, 255, 0.55);
 
     margin-bottom: 16px;
     padding: 20px;
     color: var(--u-text);
     text-align: left;
+    font-family: "Inter", var(--font-body), system-ui, -apple-system, "Segoe UI", sans-serif;
+    font-variant-numeric: tabular-nums;
     background: var(--u-panel);
     border: 1px solid var(--u-edge);
     border-radius: 12px;
 }
 
-.unified-card[data-status="normal"]   { --u-status-text: #5fdc8a; --u-glow: rgba(46, 158, 79, 0.9); }
-.unified-card[data-status="alert"]    { --u-status-text: #f2c85c; --u-glow: rgba(232, 185, 58, 0.9); }
-.unified-card[data-status="critical"] { --u-status-text: #ff9a5a; --u-glow: rgba(226, 113, 29, 0.9); }
-.unified-card[data-status="danger"]   { --u-status-text: #ff7b7b; --u-glow: rgba(217, 58, 58, 0.95); }
+.unified-card button { font-family: inherit; }
+
+.unified-card[data-status="normal"]   { --u-status-text: #5fdc8a; --u-status-bg: rgba(46, 158, 79, 0.16);  --u-status-edge: rgba(46, 158, 79, 0.45);  --u-glow: rgba(46, 158, 79, 0.9); }
+.unified-card[data-status="alert"]    { --u-status-text: #f2c85c; --u-status-bg: rgba(232, 185, 58, 0.16); --u-status-edge: rgba(232, 185, 58, 0.45); --u-glow: rgba(232, 185, 58, 0.9); }
+.unified-card[data-status="critical"] { --u-status-text: #ff9a5a; --u-status-bg: rgba(226, 113, 29, 0.18); --u-status-edge: rgba(226, 113, 29, 0.5);  --u-glow: rgba(226, 113, 29, 0.9); }
+.unified-card[data-status="danger"]   { --u-status-text: #ff7b7b; --u-status-bg: rgba(217, 58, 58, 0.20);  --u-status-edge: rgba(217, 58, 58, 0.6);   --u-glow: rgba(217, 58, 58, 0.95); }
 
 .unified-card.is-historical { border-color: rgba(232, 185, 58, 0.55); }
 
-/* Header + live/historical badge */
+/* ---------- Header + live / historical badge ---------- */
 .unified-head {
     display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
     gap: 10px; margin-bottom: 16px;
 }
 
-.unified-title { margin: 0; font: 600 1.05rem/1.2 var(--font-display); letter-spacing: 0.01em; color: #e9f4fa; }
+.unified-title { margin: 0; font-family: inherit; font-size: 1.05rem; font-weight: 600; line-height: 1.2; color: #e9f4fa; }
 
 .mode-badge {
     display: inline-flex; align-items: center; gap: 8px;
     padding: 6px 12px; border-radius: 999px;
-    font: 600 0.74rem/1 var(--font-mono); letter-spacing: 0.06em; white-space: nowrap;
+    font: 600 11.5px/1 "Inter", system-ui, sans-serif; letter-spacing: 0.04em; white-space: nowrap;
     color: #7fe3ff; background: rgba(76, 195, 232, 0.12); border: 1px solid rgba(76, 195, 232, 0.35);
 }
 .mode-badge::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
@@ -52,79 +58,132 @@
     color: #f2c85c; background: rgba(232, 185, 58, 0.14); border-color: rgba(232, 185, 58, 0.45);
 }
 
-/* Two sections, one container: info grid left, gauge right */
+/* ---------- One container, two sections ---------- */
 .unified-body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
 
 @media (min-width: 1100px) {
     .unified-body { grid-template-columns: minmax(0, 1.9fr) minmax(280px, 1fr); }
 }
 
-/* Info grid: 12 columns -> 4 cards on row one, 3 on row two, equal sizes per row */
+/* ---------- Seven information cards ----------
+   Desktop: 24-column grid, every card spans 6 -> 4 on row one; the fifth card
+   starts at column 4 so the three on row two sit centred. Rows are equal height. */
 .unified-info {
-    display: grid; grid-template-columns: repeat(12, minmax(0, 1fr));
-    grid-auto-rows: 1fr; gap: 14px; min-width: 0;
+    display: grid; grid-template-columns: repeat(24, minmax(0, 1fr));
+    grid-auto-rows: minmax(184px, 1fr); gap: 14px; min-width: 0;
 }
-.u-tile--w3 { grid-column: span 3; }
-.u-tile--w4 { grid-column: span 4; }
+.u-tile { grid-column: span 6; }
+.u-tile:nth-child(5) { grid-column: 4 / span 6; }
 
 .u-tile {
-    display: flex; flex-direction: column; min-width: 0;
-    padding: 14px 16px; background: var(--u-panel2);
-    border: 1px solid var(--u-edge); border-radius: 10px;
+    --acc: #4cc3e8;
+    --acc-bg: rgba(76, 195, 232, 0.14);
+    --acc-edge: rgba(76, 195, 232, 0.32);
+
+    display: flex; flex-direction: column; align-items: center; min-width: 0;
+    padding: 18px 14px 16px; text-align: center;
+    background: linear-gradient(180deg, #123043 0%, #0f2535 100%);
+    border: 1px solid rgba(76, 195, 232, 0.18); border-radius: 14px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.03);
 }
 
-/* Same two-line title height on every tile so the values line up */
-.u-title {
-    display: flex; align-items: center; gap: 8px; min-height: 2.4em;
-    font: 500 0.76rem/1.2 var(--font-body); letter-spacing: 0.03em;
-    text-transform: uppercase; color: var(--u-muted);
+/* Per-card accents (statistics = cyan / blue) */
+.u-tile--sms   { --acc: #7aa7ff; --acc-bg: rgba(122, 167, 255, 0.14); --acc-edge: rgba(122, 167, 255, 0.34); }
+.u-tile--high  { --acc: #6fb4ff; --acc-bg: rgba(111, 180, 255, 0.14); --acc-edge: rgba(111, 180, 255, 0.34); }
+
+/* Current Status follows the live / selected classification */
+.u-tile--status {
+    --acc: var(--u-status-text); --acc-bg: var(--u-status-bg); --acc-edge: var(--u-status-edge);
 }
-.u-title .icon-chip { flex: 0 0 auto; }
+.unified-card[data-status="danger"] .u-tile--status {
+    border-color: rgba(217, 58, 58, 0.6);
+    box-shadow: 0 0 0 1px rgba(217, 58, 58, 0.22), 0 6px 20px rgba(217, 58, 58, 0.16);
+}
+.unified-card[data-status="critical"] .u-tile--status { border-color: rgba(226, 113, 29, 0.5); }
+.unified-card[data-status="alert"] .u-tile--status    { border-color: rgba(232, 185, 58, 0.45); }
+.unified-card[data-status="normal"] .u-tile--status   { border-color: rgba(46, 158, 79, 0.45); }
+
+/* Sensor Connection follows the real connection state (set by script.js) */
+.u-tile--sensor[data-state="ok"]  { --acc: #5fdc8a; --acc-bg: rgba(46, 158, 79, 0.16);  --acc-edge: rgba(46, 158, 79, 0.45); }
+.u-tile--sensor[data-state="bad"] { --acc: #ff7b7b; --acc-bg: rgba(217, 58, 58, 0.18);  --acc-edge: rgba(217, 58, 58, 0.5); }
+
+/* 1. icon */
+.u-icon {
+    flex: 0 0 auto; display: grid; place-items: center;
+    width: 40px; height: 40px; border-radius: 50%;
+    color: var(--acc); background: var(--acc-bg); border: 1px solid var(--acc-edge);
+}
+.u-svg {
+    width: 20px; height: 20px; display: block;
+    fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+}
+
+/* 2. title */
+.u-title {
+    margin-top: 10px; min-height: 1.3em;
+    font: 500 12.5px/1.3 "Inter", system-ui, sans-serif; letter-spacing: 0.01em;
+    color: var(--u-muted); text-wrap: balance;
+}
+
+/* 3 + 4. value, then supporting text, centred in the remaining space */
+.u-body {
+    flex: 1 1 auto; width: 100%; min-width: 0;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 6px; padding-top: 8px;
+}
 
 .u-value {
-    margin: auto 0; padding-top: 8px; min-width: 0;
-    font: 600 1.4rem/1.25 var(--font-mono); color: #fff; overflow-wrap: anywhere;
+    min-width: 0; max-width: 100%;
+    font: 600 22px/1.2 "Inter", system-ui, sans-serif; letter-spacing: -0.01em; color: #fff;
+    overflow-wrap: normal; word-break: normal;
 }
-.u-value p { margin: 0; font: inherit; color: inherit; }
+.u-value p { margin: 0; font: inherit; letter-spacing: inherit; color: inherit; }
 
-.u-value--stack { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.u-sub { font: 500 0.74rem/1.3 var(--font-mono); color: var(--u-muted); }
+.u-sub, .u-date-sub {
+    display: block; font: 500 11.5px/1.35 "Inter", system-ui, sans-serif;
+    color: var(--u-muted); text-wrap: balance;
+}
+.u-date-main { display: block; font: 600 22px/1.2 "Inter", system-ui, sans-serif; color: #fff; }
+.u-date-sub { margin-top: 4px; }
 
-.u-date-line { display: block; font-size: 0.98rem; line-height: 1.4; }
-.u-date-line:first-child { color: var(--u-muted); font-size: 0.82rem; }
-
-.u-value .connected    { color: #5fdc8a; font: 600 1.05rem var(--font-mono); }
-.u-value .disconnected { color: #ff7b7b; font: 600 1.05rem var(--font-mono); }
-.u-value .checking     { color: var(--u-muted); font: 600 1.05rem var(--font-mono); }
+/* Sensor connection text (keeps the live dot and "No recent data") */
+.u-value--text { font-size: 15px; font-weight: 600; letter-spacing: 0; }
+.u-value .connected    { color: #5fdc8a; font: inherit; text-wrap: balance; }
+.u-value .disconnected { color: #ff7b7b; font: inherit; text-wrap: balance; }
+.u-value .checking     { color: var(--u-muted); font: inherit; }
+.u-value .live-dot { vertical-align: middle; margin-right: 4px; }
 
 /* Status badges (dark theme variants) */
 .unified-card .status-badge {
-    display: inline-block; padding: 4px 12px;
-    font: 600 1.05rem/1.3 var(--font-display); letter-spacing: 0.04em; border-radius: 6px;
+    display: inline-block; padding: 6px 16px;
+    font: 700 13px/1.2 "Inter", system-ui, sans-serif; letter-spacing: 0.06em; border-radius: 8px;
 }
 .unified-card .status-badge.normal   { color: #5fdc8a; background: rgba(46, 158, 79, 0.16); }
 .unified-card .status-badge.alert    { color: #f2c85c; background: rgba(232, 185, 58, 0.16); }
 .unified-card .status-badge.critical { color: #ff9a5a; background: rgba(226, 113, 29, 0.18); }
-.unified-card .status-badge.danger   { color: #ff7b7b; background: rgba(217, 58, 58, 0.20); }
+.unified-card .status-badge.danger   { color: #ff7b7b; background: rgba(217, 58, 58, 0.22); }
 .unified-card .status-badge.unknown  { color: #9db7c6; background: rgba(140, 170, 185, 0.14); }
 
-/* Gauge section */
+/* The Current Status card shows a larger badge as its main value */
+.u-tile--status .status-badge { padding: 8px 20px; font-size: 14px; }
+
+/* ---------- Gauge section ---------- */
 .unified-gauge {
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     gap: 10px; min-width: 0; padding: 16px 14px; text-align: center;
     background: linear-gradient(165deg, var(--gauge-panel, #0A2530) 0%, #081b23 100%);
-    border: 1px solid var(--u-edge); border-radius: 10px;
+    border: 1px solid var(--u-edge); border-radius: 14px;
 }
 
-.gauge-title { font: 600 0.8rem/1.2 var(--font-body); letter-spacing: 0.06em; text-transform: uppercase; color: var(--u-muted); }
+.gauge-title { font: 600 12.5px/1.2 "Inter", system-ui, sans-serif; letter-spacing: 0.02em; color: var(--u-muted); }
 
 .unified-gauge .water-level {
-    margin: 0; font: 600 2.7rem/1 var(--font-mono); letter-spacing: -0.01em;
+    margin: 0; font: 700 2.7rem/1 "Inter", system-ui, sans-serif; letter-spacing: -0.02em;
     color: var(--u-status-text); white-space: nowrap;
 }
 
-.gauge-when { display: flex; flex-direction: column; gap: 2px; font: 500 0.82rem/1.3 var(--font-mono); color: var(--u-muted); }
-.gauge-when #gaugeTime { color: #fff; font-weight: 600; font-size: 0.95rem; }
+.gauge-when { display: flex; flex-direction: column; gap: 2px; font: 500 12px/1.3 "Inter", system-ui, sans-serif; color: var(--u-muted); }
+.gauge-when #gaugeTime { color: #fff; font-weight: 600; font-size: 14px; }
 
 .unified-gauge .gauge-shell { width: 170px; height: 230px; margin: 6px 0 8px; }
 
@@ -133,14 +192,14 @@
 
 .return-btn {
     width: 100%; max-width: 280px; padding: 11px 14px;
-    font: 700 0.8rem/1.2 var(--font-display); letter-spacing: 0.07em; text-transform: uppercase;
+    font: 700 12.5px/1.2 "Inter", system-ui, sans-serif; letter-spacing: 0.05em; text-transform: uppercase;
     color: #06121a; background: #f2c85c; border: 1px solid #f2c85c; border-radius: 8px; cursor: pointer;
 }
 .return-btn:hover:not(:disabled) { filter: brightness(1.08); }
 .return-btn:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
-.return-btn:disabled { color: var(--u-muted); background: var(--u-panel2); border-color: var(--u-edge); cursor: default; }
+.return-btn:disabled { color: var(--u-muted); background: #102a3a; border-color: var(--u-edge); cursor: default; }
 
-/* History chart */
+/* ---------- History chart ---------- */
 .unified-chart .chart-canvas-wrap { height: 380px; }
 .chart-meta { margin: 10px 2px 0; text-align: center; font: 400 0.8rem/1.4 var(--font-mono); color: #8aa5b5; }
 .chart-empty {
@@ -149,20 +208,21 @@
     font: 500 0.95rem/1.4 var(--font-body); color: #9db7c6;
 }
 
-/* Tablet */
-@media (max-width: 900px) {
-    .unified-info { gap: 12px; }
-    .u-tile--w3 { grid-column: span 6; }
-    .u-tile--w4 { grid-column: span 4; }
-    .u-tile--w4:last-child { grid-column: span 4; }
+/* ---------- Tablet: 3 columns, last card centred ---------- */
+@media (max-width: 1099px) and (min-width: 641px) {
+    .unified-info { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+    .u-tile, .u-tile:nth-child(5) { grid-column: span 2; }
+    .u-tile:nth-child(7) { grid-column: 3 / span 2; }
 }
 
-/* Mobile: everything stacks, no sideways scroll */
+/* ---------- Mobile: 2 columns, last card centred ---------- */
 @media (max-width: 640px) {
     .unified-card { padding: 14px; }
-    .unified-info { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
-    .u-tile--w3, .u-tile--w4 { grid-column: auto; }
-    .u-title { min-height: 0; }
+    .unified-info { grid-template-columns: repeat(4, minmax(0, 1fr)); grid-auto-rows: minmax(168px, 1fr); gap: 10px; }
+    .u-tile, .u-tile:nth-child(5) { grid-column: span 2; }
+    .u-tile:nth-child(7) { grid-column: 2 / span 2; }
+    .u-tile { padding: 14px 8px 12px; }
+    .u-value, .u-date-main { font-size: 20px; }
     .unified-gauge .water-level { font-size: 2.3rem; }
     .unified-chart .chart-canvas-wrap { height: 300px; }
     .chart-meta { font-size: 0.74rem; }
@@ -173,7 +233,7 @@
     .unified-card .fill.danger::after { animation: none; }
 }
 
-/* Map + station health row (dashboard.html) */
+/* ---------- Map + station health row ---------- */
 .map-health { display: grid; grid-template-columns: minmax(0, 2fr) minmax(260px, 1fr); gap: 16px; margin-bottom: 16px; align-items: stretch; }
 .map-health .panel-head h3 { margin: 0; }
 .health-grid { display: grid; gap: 0; margin: 0; }
