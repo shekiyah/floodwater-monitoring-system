@@ -248,5 +248,9 @@
 .sig-bars i:nth-child(1) { height: 4px; } .sig-bars i:nth-child(2) { height: 7px; } .sig-bars i:nth-child(3) { height: 10px; }
 .sig-bars i:nth-child(4) { height: 13px; } .sig-bars i:nth-child(5) { height: 16px; }
 .sig-bars i.on { background: #5fdc8a; }
-#hUpdated.is-stale { color: #e6b25e; }
+#hUpdated { text-align: right; }
+#hUpdated.is-offline { color: #ff7b7b; font-weight: 700; letter-spacing: 0.04em; }
+.health-card { transition: border-color .2s; }
+.health-card.is-offline { border-color: rgba(217, 58, 58, 0.4); }
+.health-grid dd { font-variant-numeric: tabular-nums; min-height: 1.3em; }
 @media (max-width: 1000px) { .map-health { grid-template-columns: minmax(0, 1fr); } }

@@ -224,9 +224,19 @@
     }
 
     // ---------- Station health (latest system_status row) ----------
+    // The panel is only ONLINE while the newest system_status row's updated_at
+    // is no older than STALE_MIN minutes (the same 10-minute limit the
+    // "Updated ... ago" text and telemetry.js already use). Past that it shows
+    // OFFLINE / 0.00% / 0.00 Mbps / 0 ms as a display fallback only: nothing is
+    // written to the database, and the real numbers return as soon as a fresh
+    // row arrives (realtime insert) or the 30-second check finds one.
     const ONLINE = /online|connected|active|up|true|^1$/i;
     const isOnline = v => v === true || v === 1 || ONLINE.test(String(v ?? ""));
     const has = v => v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v));
+    const HEALTH_CHECK_MS = 30000;
+
+    let healthRow = null;          // newest system_status row received
+    let healthUnavailable = false; // true only if the very first read failed
 
     function setState(id, value, ok) {
         const el = document.getElementById(id);
@@ -234,12 +244,75 @@
         el.className = ok ? "ok" : "bad";
     }
 
-    function ageText(date) {
-        const m = Math.max(0, Math.round((Date.now() - date.getTime()) / 60000));
-        if (m < 1) return { t: "Updated just now", stale: false };
-        if (m < 60) return { t: `Updated ${m} min ago`, stale: m > STALE_MIN };
-        if (m < 2880) return { t: `Updated ${Math.round(m / 60)} h ago`, stale: true };
-        return { t: `Updated ${Math.round(m / 1440)} days ago`, stale: true };
+    function plural(n, word) { return `${n} ${word}${n === 1 ? "" : "s"}`; }
+
+    function ageText(ms) {
+        const m = Math.max(0, Math.floor(ms / 60000));
+        if (m < 1) return "just now";
+        if (m < 60) return `${plural(m, "minute")} ago`;
+        const h = Math.floor(m / 60);
+        if (h < 24) return `${plural(h, "hour")} ago`;
+        return `${plural(Math.floor(h / 24), "day")} ago`;
+    }
+
+    function setBars(pct) {
+        document.querySelectorAll("#hBars i").forEach((b, i) =>
+            b.classList.toggle("on", pct !== null && pct > i * 20));
+    }
+
+    function renderHealth() {
+        const internetEl = document.getElementById("hInternet");
+        if (!internetEl) return;
+
+        const card = internetEl.closest(".health-card");
+        const updatedEl = document.getElementById("hUpdated");
+
+        if (healthUnavailable && !healthRow) {
+            updatedEl.textContent = "Station health isn't available for your account.";
+            updatedEl.classList.remove("is-offline", "is-stale");
+            return;
+        }
+
+        let ts = null;
+        if (healthRow && healthRow.updated_at) {
+            ts = typeof parseSupabaseTimestamp === "function"
+                ? parseSupabaseTimestamp(healthRow.updated_at)
+                : new Date(healthRow.updated_at);
+        }
+
+        const valid = ts && !Number.isNaN(ts.getTime());
+        const ageMs = valid ? Date.now() - ts.getTime() : Infinity;
+        const fresh = ageMs <= STALE_MIN * 60000;
+
+        if (card) card.classList.toggle("is-offline", !fresh);
+        updatedEl.classList.toggle("is-offline", !fresh);
+        updatedEl.classList.remove("is-stale");
+
+        if (!fresh) {
+            setState("hInternet", "OFFLINE", false);
+            setState("hDevice", "OFFLINE", false);
+            document.getElementById("hSignal").textContent = "0.00%";
+            setBars(null);
+            document.getElementById("hSpeed").textContent = "0.00 Mbps";
+            document.getElementById("hPing").textContent = "0 ms";
+            updatedEl.textContent = "NO RECENT UPDATE";
+            updatedEl.title = valid ? `Last successful update: ${ts.toLocaleString()} (${ageText(ageMs)})` : "No update received yet";
+            return;
+        }
+
+        const r = healthRow;
+        setState("hInternet", r.internet_status ?? "—", isOnline(r.internet_status));
+        setState("hDevice", r.device_status ?? "—", isOnline(r.device_status));
+
+        const pct = has(r.gsm_signal) ? Math.max(0, Math.min(100, Number(r.gsm_signal))) : null;
+        document.getElementById("hSignal").textContent = pct === null ? "—" : pct.toFixed(2) + "%";
+        setBars(pct);
+
+        document.getElementById("hSpeed").textContent = has(r.upload_kbps) ? (Number(r.upload_kbps) / 1000).toFixed(2) + " Mbps" : "—";
+        document.getElementById("hPing").textContent = has(r.ping_ms) ? Math.round(Number(r.ping_ms)) + " ms" : "—";
+
+        updatedEl.textContent = `Updated ${ageText(ageMs)}`;
+        updatedEl.title = `Last successful update: ${ts.toLocaleString()}`;
     }
 
     async function loadHealth() {
@@ -248,30 +321,16 @@
         const { data, error } = await supabaseClient
             .from("system_status").select("*").order("updated_at", { ascending: false }).limit(1);
 
-        if (error || !data || !data.length) {
-            document.getElementById("hUpdated").textContent = error ? "Station health isn't available for your account." : "No station data yet.";
+        if (error) {
+            // Keep judging freshness from the last row we did receive.
+            if (!healthRow) healthUnavailable = true;
+            renderHealth();
             return;
         }
 
-        const r = data[0];
-        setState("hInternet", r.internet_status ?? "—", isOnline(r.internet_status));
-        setState("hDevice", r.device_status ?? "—", isOnline(r.device_status));
-
-        const pct = has(r.gsm_signal) ? Math.max(0, Math.min(100, Number(r.gsm_signal))) : null;
-        document.getElementById("hSignal").textContent = pct === null ? "—" : pct + "%";
-        document.querySelectorAll("#hBars i").forEach((b, i) =>
-            b.classList.toggle("on", pct !== null && pct > i * 20));
-
-        document.getElementById("hSpeed").textContent = has(r.upload_kbps) ? (Number(r.upload_kbps) / 1000).toFixed(2) + " Mbps" : "—";
-        document.getElementById("hPing").textContent = has(r.ping_ms) ? Math.round(Number(r.ping_ms)) + " ms" : "—";
-
-        if (r.updated_at) {
-            const ts = typeof parseSupabaseTimestamp === "function" ? parseSupabaseTimestamp(r.updated_at) : new Date(r.updated_at);
-            const a = ageText(ts);
-            const u = document.getElementById("hUpdated");
-            u.textContent = a.t;
-            u.classList.toggle("is-stale", a.stale);
-        }
+        healthUnavailable = false;
+        healthRow = data && data.length ? data[0] : null;
+        renderHealth();
         // The pin stays at STATION above; device GPS is not used.
     }
 
@@ -296,6 +355,11 @@
                 .subscribe();
         }
         window.setInterval(loadCellLocation, LOCATION_POLL_MS);
+        // Re-check freshness on a timer so the panel flips to OFFLINE by itself
+        // when the device goes quiet, and re-read the table in case a realtime
+        // event was missed. Online/offline is decided only by the row's age.
+        window.setInterval(renderHealth, HEALTH_CHECK_MS);
+        window.setInterval(loadHealth, HEALTH_CHECK_MS * 2);
     }
 
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
