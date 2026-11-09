@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0E3B4D">
+<meta name="robots" content="noindex">
+<title>Role Management — Flood Monitoring System</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;600&family=Public+Sans:wght@400;500;600&family=Inter:wght@400;500;600;700&display=swap">
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="dashboard-pro.css">
+<link rel="stylesheet" href="role-management.css">
+</head>
+<body class="dash-pro">
+
+<a class="skip-link" href="#main">Skip to main content</a>
+
+<nav aria-label="Main">
+
+    <a class="brand" href="dashboard.html">
+        <svg class="brand-mark" viewBox="0 0 32 32" aria-hidden="true"><path d="M16 3c4.6 5.7 8.5 10 8.5 14.6a8.5 8.5 0 0 1-17 0C7.5 13 11.4 8.7 16 3z" fill="#E6B25E"/><path d="M9.6 18.4c1.6-1.4 3.2-1.4 4.8 0s3.2 1.4 4.8 0 2.2-.9 3-.4" fill="none" stroke="#0E3B4D" stroke-width="1.8" stroke-linecap="round"/></svg>
+        <span>Flood Monitoring System</span>
+    </a>
+
+    <div class="user-account">
+        <span id="userName">Loading user…</span>
+        <small id="userRole"></small>
+    </div>
+
+    <div class="nav-actions">
+
+        <a href="dashboard.html" class="nav-icon-link" title="Dashboard">
+            <span class="icon-chip icon-chip--menu" aria-hidden="true">🏠</span>
+            <span class="nav-icon-label">Dashboard</span>
+        </a>
+
+        <div class="nav-menu">
+
+            <button type="button" class="menu-button" id="menuButton"
+                    aria-haspopup="true" aria-expanded="false" aria-controls="navDropdown"
+                    onclick="toggleMenu()">
+                <svg viewBox="0 0 20 16" width="20" height="16" aria-hidden="true">
+                    <rect y="0" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                    <rect y="6.8" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                    <rect y="13.6" width="20" height="2.4" rx="1.2" fill="currentColor"/>
+                </svg>
+                <span class="sr-only">Menu</span>
+            </button>
+
+            <div class="nav-dropdown" id="navDropdown" role="menu">
+
+                <a href="telemetry.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📶</span>
+                    Telemetry
+                </a>
+
+                <a href="history.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📊</span>
+                    History logs
+                </a>
+
+                <a href="recipients.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">📱</span>
+                    Recipients
+                </a>
+
+                <a href="message-settings.html" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">✉️</span>
+                    Messages
+                </a>
+
+                <a href="ota.html" class="nav-dropdown-item" role="menuitem" data-min-role="admin">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🔧</span>
+                    Firmware
+                </a>
+
+                <a href="role-management.html" class="nav-dropdown-item" role="menuitem" data-min-role="admin" aria-current="page">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🛡️</span>
+                    Role Management
+                </a>
+
+                <a href="dashboard.html#settings" class="nav-dropdown-item" role="menuitem" data-min-role="moderator">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">⚙️</span>
+                    Settings
+                </a>
+
+                <div class="nav-dropdown-divider"></div>
+
+                <button type="button" class="nav-dropdown-item nav-dropdown-item--logout" role="menuitem" onclick="logout()">
+                    <span class="icon-chip icon-chip--menu" aria-hidden="true">🚪</span>
+                    Log out
+                </button>
+
+            </div>
+
+        </div>
+
+    </div>
+
+</nav>
+
+<noscript>
+    <div class="container"><p class="lede">This page needs JavaScript. Turn it on and reload.</p></div>
+</noscript>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+    <symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+    <symbol id="i-shield-check" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/><path d="m9 12 2 2 4-4"/></symbol>
+    <symbol id="i-user-cog" viewBox="0 0 24 24"><circle cx="18" cy="15" r="3"/><circle cx="9" cy="7" r="4"/><path d="M10 15H6a4 4 0 0 0-4 4v2"/><path d="m21.7 16.4-.9-.3"/><path d="m15.2 13.9-.9-.3"/><path d="m16.6 18.7.3-.9"/><path d="m19.1 12.2.3-.9"/><path d="m19.6 18.7-.4-1"/><path d="m16.8 12.3-.4-1"/><path d="m14.3 16.6 1-.4"/><path d="m20.7 13.8 1-.4"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+    <symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+    <symbol id="i-history" viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></symbol>
+    <symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+    <symbol id="i-triangle-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+</svg>
+
+<main class="container" id="main">
+<div class="rm-page">
+
+    <a href="dashboard.html" class="back-link"><span class="back-link-arrow" aria-hidden="true">←</span> Dashboard</a>
+
+    <div class="page-header">
+        <div>
+            <h1>Role Management</h1>
+            <p>View registered users and manage their access level. Changes are recorded in the activity history.</p>
+        </div>
+    </div>
+
+    <!-- Hidden until the administrator check passes -->
+    <div id="rmContent" hidden>
+
+    <section class="rm-stats" aria-label="User summary">
+        <article class="rm-stat rm-stat--total">
+            <span class="rm-icon" aria-hidden="true"><svg class="rm-svg"><use href="#i-users"/></svg></span>
+            <div class="rm-stat-text"><div class="rm-stat-label">Total users</div><div class="rm-stat-value" id="statTotal">—</div></div>
+        </article>
+        <article class="rm-stat rm-stat--admin">
+            <span class="rm-icon" aria-hidden="true"><svg class="rm-svg"><use href="#i-shield-check"/></svg></span>
+            <div class="rm-stat-text"><div class="rm-stat-label">Administrators</div><div class="rm-stat-value" id="statAdmins">—</div></div>
+        </article>
+        <article class="rm-stat rm-stat--mod">
+            <span class="rm-icon" aria-hidden="true"><svg class="rm-svg"><use href="#i-user-cog"/></svg></span>
+            <div class="rm-stat-text"><div class="rm-stat-label">Moderators</div><div class="rm-stat-value" id="statModerators">—</div></div>
+        </article>
+        <article class="rm-stat rm-stat--viewer">
+            <span class="rm-icon" aria-hidden="true"><svg class="rm-svg"><use href="#i-eye"/></svg></span>
+            <div class="rm-stat-text"><div class="rm-stat-label">Viewers</div><div class="rm-stat-value" id="statViewers">—</div></div>
+        </article>
+    </section>
+
+    <section class="rm-panel" aria-label="Users">
+
+        <header class="rm-toolbar">
+            <label class="rm-search">
+                <svg class="rm-svg" aria-hidden="true"><use href="#i-search"/></svg>
+                <input type="search" id="rmSearch" placeholder="Search name, email or user ID" autocomplete="off" aria-label="Search users">
+            </label>
+            <label class="rm-filter">
+                <span class="rm-label">Role</span>
+                <select id="rmRoleFilter" aria-label="Filter by role">
+                    <option value="">All roles</option>
+                    <option value="admin">Administrator</option>
+                    <option value="moderator">Moderator</option>
+                    <option value="viewer">Viewer</option>
+                </select>
+            </label>
+        </header>
+
+        <div class="rm-table-wrap">
+            <table class="rm-table" id="rmUsersTable">
+                <thead>
+                    <tr>
+                        <th scope="col">User ID</th>
+                        <th scope="col">Full name</th>
+                        <th scope="col">Email</th>
+                        <th scope="col">Current role</th>
+                        <th scope="col">Registered</th>
+                        <th scope="col" class="rm-col-action">Action</th>
+                    </tr>
+                </thead>
+                <tbody id="rmUsersBody">
+                    <tr class="rm-empty"><td colspan="6"><span class="rm-spinner" aria-hidden="true"></span> Loading users…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="rm-pager">
+            <span class="rm-pager-info" id="rmUsersInfo" aria-live="polite"></span>
+            <span class="rm-pager-btns">
+                <button type="button" class="rm-btn rm-btn--ghost" id="rmUsersPrev">Previous</button>
+                <button type="button" class="rm-btn rm-btn--ghost" id="rmUsersNext">Next</button>
+            </span>
+        </footer>
+
+    </section>
+
+    <section class="rm-panel" aria-label="Role change history">
+
+        <header class="rm-head">
+            <span class="rm-icon rm-icon--sm" aria-hidden="true"><svg class="rm-svg"><use href="#i-history"/></svg></span>
+            <h2 class="rm-title">Role change history</h2>
+        </header>
+
+        <div class="rm-table-wrap">
+            <table class="rm-table" id="rmHistoryTable">
+                <thead>
+                    <tr>
+                        <th scope="col">Date &amp; time</th>
+                        <th scope="col">Administrator</th>
+                        <th scope="col">User changed</th>
+                        <th scope="col">Previous role</th>
+                        <th scope="col">New role</th>
+                    </tr>
+                </thead>
+                <tbody id="rmHistoryBody">
+                    <tr class="rm-empty"><td colspan="5"><span class="rm-spinner" aria-hidden="true"></span> Loading history…</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <footer class="rm-pager">
+            <span class="rm-pager-info" id="rmHistoryInfo" aria-live="polite"></span>
+            <span class="rm-pager-btns">
+                <button type="button" class="rm-btn rm-btn--ghost" id="rmHistoryPrev">Previous</button>
+                <button type="button" class="rm-btn rm-btn--ghost" id="rmHistoryNext">Next</button>
+            </span>
+        </footer>
+
+    </section>
+
+    </div>
+
+    <p class="rm-denied" id="rmDenied" role="alert" hidden></p>
+
+</div>
+</main>
+
+<!-- Manage role -->
+<div class="rm-overlay" id="roleModal" hidden>
+    <form class="rm-modal" role="dialog" aria-modal="true" aria-labelledby="roleModalTitle" id="roleForm" novalidate>
+        <header class="rm-modal-head">
+            <span class="rm-icon rm-icon--sm" aria-hidden="true"><svg class="rm-svg"><use href="#i-shield"/></svg></span>
+            <h2 class="rm-modal-title" id="roleModalTitle">Manage role</h2>
+            <button type="button" class="rm-x" id="roleModalX" aria-label="Close"><svg class="rm-svg"><use href="#i-x"/></svg></button>
+        </header>
+
+        <dl class="rm-facts">
+            <div><dt>User</dt><dd id="mUser">—</dd></div>
+            <div><dt>Email</dt><dd id="mEmail">—</dd></div>
+            <div><dt>Current role</dt><dd id="mCurrent">—</dd></div>
+        </dl>
+
+        <label class="rm-field" for="mNewRole">New role</label>
+        <select id="mNewRole" class="rm-select">
+            <option value="admin">Administrator</option>
+            <option value="moderator">Moderator</option>
+            <option value="viewer">Viewer</option>
+        </select>
+
+        <p class="rm-msg" id="mMsg" role="alert" hidden></p>
+
+        <footer class="rm-modal-actions">
+            <button type="button" class="rm-btn rm-btn--ghost" id="roleCancel">CANCEL</button>
+            <button type="submit" class="rm-btn" id="roleSave">SAVE CHANGES</button>
+        </footer>
+    </form>
+</div>
+
+<!-- Confirm -->
+<div class="rm-overlay" id="confirmModal" hidden>
+    <div class="rm-modal rm-modal--confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmText">
+        <header class="rm-modal-head">
+            <span class="rm-icon rm-icon--sm rm-icon--warn" aria-hidden="true"><svg class="rm-svg"><use href="#i-triangle-alert"/></svg></span>
+            <h2 class="rm-modal-title" id="confirmTitle">Confirm role change</h2>
+        </header>
+        <p class="rm-confirm-text" id="confirmText"></p>
+        <p class="rm-confirm-extra" id="confirmExtra" hidden></p>
+        <p class="rm-msg" id="cMsg" role="alert" hidden></p>
+        <footer class="rm-modal-actions">
+            <button type="button" class="rm-btn rm-btn--ghost" id="confirmCancel">CANCEL</button>
+            <button type="button" class="rm-btn" id="confirmOk">YES, CHANGE ROLE</button>
+        </footer>
+    </div>
+</div>
+
+<div class="rm-toasts" id="rmToasts" aria-live="polite"></div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="supabase-config.js"></script>
+<script src="nav.js"></script>
+<script src="role-management.js"></script>
+
+</body>
+</html>

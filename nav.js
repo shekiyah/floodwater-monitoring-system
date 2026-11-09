@@ -22,6 +22,10 @@ const PUBLIC_PAGES = [
 
 let currentRole = "viewer";
 
+// The role the current page demands (set by requireRole). Used to throw a user
+// out when their role is lowered while the page is open.
+let requiredRole = null;
+
 // Resolves once, with { user, profile, role } — or null if the visitor
 // isn't signed in (in which case they're already being redirected).
 // Pages that need to wait for the role call requireRole() below
@@ -66,10 +70,40 @@ const navReady = (async function initNav() {
         userRoleElement.textContent = "Role: " + currentRole;
     }
 
+    ensureAdminMenuLink();
     applyPermissions();
 
     return { user, profile, role: currentRole };
 })();
+
+// Adds "Role Management" to the dropdown for administrators on every page
+// that uses this nav, so no other HTML file has to be edited. A page that
+// already has the link (role-management.html) is left alone.
+function ensureAdminMenuLink() {
+
+    const dropdown = document.getElementById("navDropdown");
+
+    if (!dropdown || dropdown.querySelector('a[href="role-management.html"]')) {
+        return;
+    }
+
+    const link = document.createElement("a");
+
+    link.href = "role-management.html";
+    link.className = "nav-dropdown-item";
+    link.setAttribute("role", "menuitem");
+    link.dataset.minRole = "admin";
+    link.innerHTML = '<span class="icon-chip icon-chip--menu" aria-hidden="true">🛡️</span> Role Management';
+    link.addEventListener("click", () => toggleMenu(false));
+
+    const anchor = dropdown.querySelector('a[href="ota.html"]');
+
+    if (anchor) {
+        anchor.after(link);
+    } else {
+        dropdown.insertBefore(link, dropdown.querySelector(".nav-dropdown-divider"));
+    }
+}
 
 function applyPermissions() {
 
@@ -86,6 +120,8 @@ function applyPermissions() {
 // anyone below `minRole` back to the dashboard. Returns true if the
 // page may continue loading.
 async function requireRole(minRole, deniedMessage) {
+
+    requiredRole = minRole;
 
     const session = await navReady;
 
@@ -112,6 +148,70 @@ async function requireRole(minRole, deniedMessage) {
     window.location.replace("dashboard.html");
     return false;
 }
+
+// ROLE REFRESH
+// The role is re-read from the database (never from the browser) when the tab
+// comes back into view and once a minute while it is open. If an administrator
+// lowers this user's role, restricted menu items disappear and a restricted
+// page sends them to the dashboard, without logging out or registering again.
+// The Row Level Security policies and the admin-only database functions still
+// refuse the request on the server whatever this page shows.
+let lastRoleCheck = 0;
+
+async function refreshRole() {
+
+    if (Date.now() - lastRoleCheck < 15000) {
+        return;
+    }
+
+    lastRoleCheck = Date.now();
+
+    const { data: { user }, error: userError } = await supabaseClient.auth.getUser();
+
+    if (userError || !user) {
+        return;                       // offline or signed out: initNav / the next request handles it
+    }
+
+    const { data: profile, error } = await supabaseClient
+        .from("profiles")
+        .select("role")
+        .eq("id", user.id)
+        .maybeSingle();
+
+    if (error) {
+        return;
+    }
+
+    const fresh = profile && ROLE_RANK[profile.role] !== undefined ? profile.role : "viewer";
+
+    if (fresh === currentRole) {
+        return;
+    }
+
+    currentRole = fresh;
+
+    const userRoleElement = document.getElementById("userRole");
+
+    if (userRoleElement) {
+        userRoleElement.textContent = "Role: " + currentRole;
+    }
+
+    applyPermissions();
+
+    if (requiredRole && ROLE_RANK[currentRole] < ROLE_RANK[requiredRole]) {
+        window.location.replace("dashboard.html");
+    }
+}
+
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") refreshRole();
+});
+
+window.addEventListener("focus", refreshRole);
+
+setInterval(() => {
+    if (document.visibilityState === "visible") refreshRole();
+}, 60 * 1000);
 
 // NAV DROPDOWN MENU
 
