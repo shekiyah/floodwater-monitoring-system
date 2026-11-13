@@ -76,9 +76,8 @@ const navReady = (async function initNav() {
     return { user, profile, role: currentRole };
 })();
 
-// Adds "Role Management" to the dropdown for administrators on every page
-// that uses this nav, so no other HTML file has to be edited. A page that
-// already has the link (role-management.html) is left alone.
+// Adds "Role Management" after Recipients for administrators on every page
+// that uses this nav. A page that already has the link is left alone.
 function ensureAdminMenuLink() {
 
     const dropdown = document.getElementById("navDropdown");
@@ -96,7 +95,7 @@ function ensureAdminMenuLink() {
     link.innerHTML = '<span class="icon-chip icon-chip--menu" aria-hidden="true">🛡️</span> Role Management';
     link.addEventListener("click", () => toggleMenu(false));
 
-    const anchor = dropdown.querySelector('a[href="ota.html"]');
+    const anchor = dropdown.querySelector('a[href="recipients.html"]');
 
     if (anchor) {
         anchor.after(link);
