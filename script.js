@@ -886,21 +886,53 @@ async function loadStatistics() {
 
 // ---------------------------------------------------------------
 // LAST SMS ALERT
-// UNVERIFIED: reads the newest row of public.sms_queue. The column names
-// below (water_level / level / reading, sent_at / created_at) are a best
-// guess because sms_queue's schema wasn't provided. If your live page
-// already has its own Last SMS Alert code, keep that and delete this
-// block and the Last SMS tile's ids. Does nothing if #smsLevel is absent.
+// The ESP32 records the actual alert message in public.alert_events.
+// Read that table instead of sms_queue, because sms_queue also contains
+// other outgoing messages (for example, recipient welcome messages).
 // ---------------------------------------------------------------
-function firstNumber(...values) {
+let latestSmsEventCreatedAtMs = 0;
 
-    for (const v of values) {
-        if (v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v))) {
-            return Number(v);
+function getSmsAlertDisplayData(event) {
+
+    if (!event || !event.created_at) return null;
+
+    const eventCreatedAtMs = parseSupabaseTimestamp(event.created_at).getTime();
+    if (!Number.isFinite(eventCreatedAtMs)) return null;
+
+    const message = String(event.message ?? "");
+    const waterMatch = message.match(/\bWater:\s*(-?\d+(?:\.\d+)?)\s*m\b/i);
+    const statusMatch = message.match(/\bFLOOD(?:\s+UPDATE)?\s*:?\s*(ALERT|CRITICAL|DANGER)\b/i);
+    const smsTimeMatch = message.match(/\bTime:\s*(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})\b/i);
+
+    const level = waterMatch ? Number(waterMatch[1]) : null;
+    const validLevel = level !== null && Number.isFinite(level);
+
+    // The ESP32 message contains Philippine local time. Prefer that value
+    // when it is present; otherwise use Supabase's created_at timestamp.
+    let displayTimestamp = event.created_at;
+
+    if (smsTimeMatch) {
+        const smsTimestamp = `${smsTimeMatch[1]}T${smsTimeMatch[2]}+08:00`;
+        const parsedSmsTimestamp = new Date(smsTimestamp);
+
+        if (!Number.isNaN(parsedSmsTimestamp.getTime())) {
+            displayTimestamp = smsTimestamp;
         }
     }
 
-    return null;
+    const displayTimestampMs = parseSupabaseTimestamp(displayTimestamp).getTime();
+    if (!Number.isFinite(displayTimestampMs)) return null;
+
+    const status = statusMatch
+        ? statusMatch[1].toUpperCase()
+        : (validLevel ? getFloodStatus(level) : "");
+
+    return {
+        eventCreatedAtMs,
+        level: validLevel ? level : null,
+        status,
+        displayTimestampMs
+    };
 }
 
 function renderSms(levelText, status, timeText) {
@@ -917,36 +949,60 @@ function renderSms(levelText, status, timeText) {
     }
 }
 
+function displaySmsAlertEvent(event) {
+
+    const alert = getSmsAlertDisplayData(event);
+    if (!alert || alert.eventCreatedAtMs < latestSmsEventCreatedAtMs) return false;
+
+    latestSmsEventCreatedAtMs = alert.eventCreatedAtMs;
+
+    renderSms(
+        alert.level === null ? "Alert sent" : alert.level.toFixed(2) + " m",
+        alert.status,
+        formatMonitorDateTime(alert.displayTimestampMs, true)
+    );
+
+    return true;
+}
+
+function handleSmsAlertInsert(payload) {
+
+    const event = payload && payload.new;
+    const alert = getSmsAlertDisplayData(event);
+
+    if (!alert || alert.eventCreatedAtMs <= latestSmsEventCreatedAtMs) return;
+
+    displaySmsAlertEvent(event);
+}
+
 async function loadLastSms() {
 
     if (!byId("smsLevel")) return;
 
     const { data, error } = await supabaseClient
-        .from("sms_queue")
+        .from("alert_events")
         .select("*")
         .order("created_at", { ascending: false })
-        .limit(1);
+        .order("id", { ascending: false })
+        .limit(50);
 
     if (error) {
-        console.warn("Last SMS alert not available:", error.message);
-        renderSms("—", "", "");
+        console.warn("Last SMS alert could not be loaded from alert_events:", error.message);
         return;
     }
 
-    if (!data || !data.length) {
-        renderSms("No alerts yet", "", "");
+    const latestEvent = (data || []).find(row => row && row.created_at);
+
+    if (!latestEvent) {
+        // Do not erase an alert already received through Realtime while this
+        // database request was still in progress.
+        if (latestSmsEventCreatedAtMs === 0) {
+            renderSms("No alerts yet", "", "");
+        }
         return;
     }
 
-    const row = data[0];
-    const level = firstNumber(row.water_level, row.level, row.reading);
-    const when = row.sent_at || row.created_at;
-
-    renderSms(
-        level === null ? "Alert sent" : level.toFixed(2) + " m",
-        level === null ? "" : getFloodStatus(level),
-        when ? formatMonitorDateTime(parseSupabaseTimestamp(when).getTime(), true) : ""
-    );
+    displaySmsAlertEvent(latestEvent);
 }
 
 // Statistics need several queries. A busy device could trigger them on
@@ -960,7 +1016,6 @@ function scheduleStatisticsRefresh() {
     statisticsTimer = setTimeout(() => {
         statisticsTimer = null;
         loadStatistics();
-        loadLastSms();
     }, 15000);
 }
 
@@ -972,7 +1027,6 @@ renderDashboard();
 getWaterReading();
 loadWaterChart();
 loadStatistics();
-loadLastSms();
 
 // REALTIME WATER LEVEL UPDATE
 
@@ -1000,4 +1054,23 @@ supabaseClient
             scheduleStatisticsRefresh();
         }
     )
-    .subscribe();
+    .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "alert_events" },
+        handleSmsAlertInsert
+    )
+    .subscribe(status => {
+        if (status === "SUBSCRIBED") {
+            loadLastSms();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            console.warn("Dashboard Realtime subscription status:", status);
+        }
+    });
+
+// Fallback refresh in case Realtime is unavailable or an INSERT event is missed.
+// The dashboard refreshes only while visible to avoid unnecessary background queries.
+const lastSmsRefreshTimer = setInterval(() => {
+    if (document.visibilityState === "visible") {
+        loadLastSms();
+    }
+}, 15000);
