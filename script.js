@@ -257,11 +257,11 @@ async function getWaterReading() {
         .limit(1);
 
     if (error) {
-        console.error("Latest reading error:", error);
+        console.warn("Latest reading refresh failed:", error.message);
         return;
     }
 
-    const latestRow = data[0];
+    const latestRow = data && data.length ? data[0] : null;
 
     if (!latestRow) {
         const sensor = byId("sensorConnection");
@@ -271,8 +271,11 @@ async function getWaterReading() {
 
     const reading = toReading(latestRow);
 
-    if (reading) {
+    // Do not let a slower polling response overwrite a newer Realtime event.
+    // Only update the live display and chart when this is a genuinely newer row.
+    if (reading && (!liveReading || reading.ts > liveReading.ts)) {
         setLiveReading(reading, latestRow.created_at);
+        appendReadingToChart(reading);
     }
 }
 
@@ -1005,18 +1008,33 @@ async function loadLastSms() {
     displaySmsAlertEvent(latestEvent);
 }
 
-// Statistics need several queries. A busy device could trigger them on
-// every insert, so refresh at most once every 15 seconds.
-let statisticsTimer = null;
+// ---------------------------------------------------------------
+// AUTOMATIC DASHBOARD REFRESH
+// Realtime is the primary update path. This polling fallback checks the
+// latest reading and system-wide statistics every 15 seconds so the cards
+// still refresh if Realtime disconnects or an INSERT event is missed.
+// ---------------------------------------------------------------
+const DASHBOARD_REFRESH_INTERVAL_MS = 15000;
+let dashboardRefreshInProgress = false;
 
-function scheduleStatisticsRefresh() {
+async function refreshDashboardData() {
 
-    if (statisticsTimer) return;
+    // Prevent overlapping polling cycles when a request takes longer than
+    // the refresh interval or the tab becomes visible during an active cycle.
+    if (dashboardRefreshInProgress) return;
 
-    statisticsTimer = setTimeout(() => {
-        statisticsTimer = null;
-        loadStatistics();
-    }, 15000);
+    dashboardRefreshInProgress = true;
+
+    try {
+        await Promise.allSettled([
+            getWaterReading(),
+            loadStatistics()
+        ]);
+    } catch (error) {
+        console.warn("Dashboard automatic refresh failed:", error);
+    } finally {
+        dashboardRefreshInProgress = false;
+    }
 }
 
 // ---------------------------------------------------------------
@@ -1024,9 +1042,9 @@ function scheduleStatisticsRefresh() {
 // ---------------------------------------------------------------
 initChartDateInputs();
 renderDashboard();
-getWaterReading();
+refreshDashboardData();
 loadWaterChart();
-loadStatistics();
+loadLastSms();
 
 // REALTIME WATER LEVEL UPDATE
 
@@ -1039,10 +1057,10 @@ supabaseClient
 
             const reading = toReading(payload.new);
 
-            if (reading) {
-                // While a historical point is selected the container keeps
-                // showing it; only the live record, banner and connection
-                // status move.
+            if (reading && (!liveReading || reading.ts > liveReading.ts)) {
+                // Realtime updates the live record immediately. A historical
+                // chart selection remains visible until the user returns to
+                // the latest reading.
                 setLiveReading(reading, payload.new.created_at);
                 appendReadingToChart(reading);
             }
@@ -1051,7 +1069,6 @@ supabaseClient
             // Postgres trigger on water_readings inserts — see
             // rls-and-alert-trigger.sql. Nothing here sends or changes them.
 
-            scheduleStatisticsRefresh();
         }
     )
     .on(
@@ -1062,15 +1079,27 @@ supabaseClient
     .subscribe(status => {
         if (status === "SUBSCRIBED") {
             loadLastSms();
-        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
+            // Recheck the live values when the Realtime channel reconnects.
+            refreshDashboardData();
+        } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
             console.warn("Dashboard Realtime subscription status:", status);
         }
     });
 
-// Fallback refresh in case Realtime is unavailable or an INSERT event is missed.
-// The dashboard refreshes only while visible to avoid unnecessary background queries.
-const lastSmsRefreshTimer = setInterval(() => {
+// Polling fallback for live readings and statistics. This does not replace
+// Realtime; it repairs missed updates and recovers the dashboard after a
+// temporary connection interruption. Do not query while the tab is hidden.
+const dashboardRefreshTimer = setInterval(() => {
     if (document.visibilityState === "visible") {
+        refreshDashboardData();
         loadLastSms();
     }
-}, 15000);
+}, DASHBOARD_REFRESH_INTERVAL_MS);
+
+// Refresh immediately when the user returns to the dashboard tab.
+document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+        refreshDashboardData();
+        loadLastSms();
+    }
+});
