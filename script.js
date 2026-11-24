@@ -839,22 +839,30 @@ function updateZoomSliderUI() {
 // ---------------------------------------------------------------
 // SYSTEM-WIDE STATISTICS (never affected by a historical selection)
 // ---------------------------------------------------------------
+let statisticsRequestId = 0;
+
 async function loadStatistics() {
+
+    // A newer Realtime/polling request must win if an older request finishes late.
+    const requestId = ++statisticsRequestId;
 
     // Total readings — count only, doesn't download any rows.
     const { count, error: countError } = await supabaseClient
         .from("water_readings")
         .select("*", { count: "exact", head: true });
 
+    if (requestId !== statisticsRequestId) return;
+
     if (countError) {
-        console.log(countError);
+        console.warn("Total readings refresh failed:", countError.message);
         return;
     }
 
     setText("totalReadings", (count || 0).toLocaleString());
 
     if (!count) {
-        console.log("No statistics available");
+        setText("highestLevel", "0 m");
+        setText("lowestLevel", "0 m");
         return;
     }
 
@@ -866,9 +874,11 @@ async function loadStatistics() {
         .limit(1)
         .single();
 
+    if (requestId !== statisticsRequestId) return;
+
     if (highestError) {
-        console.log(highestError);
-    } else {
+        console.warn("Highest level refresh failed:", highestError.message);
+    } else if (highestRow && Number.isFinite(Number(highestRow.water_level))) {
         setText("highestLevel", Number(highestRow.water_level).toFixed(2) + " m");
     }
 
@@ -880,11 +890,34 @@ async function loadStatistics() {
         .limit(1)
         .single();
 
+    if (requestId !== statisticsRequestId) return;
+
     if (lowestError) {
-        console.log(lowestError);
-    } else {
+        console.warn("Lowest level refresh failed:", lowestError.message);
+    } else if (lowestRow && Number.isFinite(Number(lowestRow.water_level))) {
         setText("lowestLevel", Number(lowestRow.water_level).toFixed(2) + " m");
     }
+}
+
+// Realtime is the primary update path for statistics. A short debounce
+// combines bursts of INSERT events (for example, when an offline backlog
+// is uploaded) into one exact count/high/low refresh.
+const REALTIME_STATS_DEBOUNCE_MS = 300;
+let realtimeStatisticsTimer = null;
+
+function scheduleRealtimeStatisticsRefresh() {
+
+    if (realtimeStatisticsTimer !== null) {
+        clearTimeout(realtimeStatisticsTimer);
+    }
+
+    realtimeStatisticsTimer = setTimeout(() => {
+        realtimeStatisticsTimer = null;
+
+        if (document.visibilityState === "visible") {
+            loadStatistics();
+        }
+    }, REALTIME_STATS_DEBOUNCE_MS);
 }
 
 // ---------------------------------------------------------------
@@ -1064,6 +1097,11 @@ supabaseClient
                 setLiveReading(reading, payload.new.created_at);
                 appendReadingToChart(reading);
             }
+
+            // Refresh Total/Highest/Lowest from the database shortly after
+            // every INSERT. This makes Total Readings Realtime-driven too,
+            // rather than waiting for the 15-second backup poll.
+            scheduleRealtimeStatisticsRefresh();
 
             // Flood alerts (SMS/email) are handled server-side by a
             // Postgres trigger on water_readings inserts — see
